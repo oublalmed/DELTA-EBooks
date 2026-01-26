@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment
+.env
+
+# Database
+*.sqlite
+*.sqlite3
+server/delta_ebooks.db

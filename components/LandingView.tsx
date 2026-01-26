@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BOOK_TITLE, AUTHOR, BOOK_SUBTITLE } from '../constants';
+import { FREE_CHAPTERS } from '../types';
 import EmailCapture from './EmailCapture';
 
 interface LandingViewProps {
@@ -18,7 +19,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-[#fdfcf9] overflow-hidden">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-themed overflow-hidden">
       {/* Decorative background orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-15%] w-[60%] h-[60%] bg-rose-100/30 rounded-full blur-[120px] animate-pulse-soft" />
@@ -32,40 +33,40 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
 
       <div className={`z-10 text-center max-w-3xl px-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         {/* Library emblem */}
-        <div className="mb-8 inline-flex items-center justify-center w-20 h-20 rounded-full border border-stone-200 bg-white/60 shadow-sm">
+        <div className="mb-8 inline-flex items-center justify-center w-20 h-20 rounded-full border border-themed bg-themed-card/60 shadow-sm">
           <span className="text-3xl">&#x2726;</span>
         </div>
 
-        <h2 className="text-sm tracking-[0.4em] text-stone-400 uppercase mb-6 font-medium">{BOOK_SUBTITLE}</h2>
+        <h2 className="text-sm tracking-[0.4em] text-themed-muted uppercase mb-6 font-medium">{BOOK_SUBTITLE}</h2>
 
-        <h1 className="text-5xl sm:text-6xl md:text-8xl font-display text-stone-800 mb-8 leading-[1.1] font-medium">
+        <h1 className="text-5xl sm:text-6xl md:text-8xl font-display text-themed mb-8 leading-[1.1] font-medium">
           {BOOK_TITLE}
         </h1>
 
         <div className="w-20 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent mx-auto mb-8" />
 
-        <p className="text-xl text-stone-500 italic font-serif mb-4">
+        <p className="text-xl text-themed-muted italic font-serif mb-4">
           By {AUTHOR}
         </p>
-        <p className="text-stone-400 font-serif text-lg mb-12 max-w-lg mx-auto leading-relaxed">
+        <p className="text-themed-sub font-serif text-lg mb-12 max-w-lg mx-auto leading-relaxed">
           A curated collection of philosophical journeys exploring love, purpose, resilience, and the art of mindful existence.
         </p>
 
         {/* Stats */}
         <div className="flex items-center justify-center gap-8 mb-10">
           <div className="text-center">
-            <div className="text-2xl font-display font-bold text-stone-800">{totalBooks}</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Books</div>
+            <div className="text-2xl font-display font-bold text-themed">{totalBooks}</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Books</div>
           </div>
-          <div className="w-px h-10 bg-stone-200" />
+          <div className="w-px h-10 bg-themed-muted" />
           <div className="text-center">
-            <div className="text-2xl font-display font-bold text-stone-800">{totalChapters}</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Chapters</div>
+            <div className="text-2xl font-display font-bold text-themed">{totalChapters}</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Chapters</div>
           </div>
-          <div className="w-px h-10 bg-stone-200" />
+          <div className="w-px h-10 bg-themed-muted" />
           <div className="text-center">
-            <div className="text-2xl font-display font-bold text-stone-800">3</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Free/Book</div>
+            <div className="text-2xl font-display font-bold text-themed">{FREE_CHAPTERS}</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Free/Book</div>
           </div>
         </div>
 
@@ -93,14 +94,14 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
 
         {/* Email capture */}
         <div className={`max-w-md mx-auto transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <p className="text-stone-400 text-xs mb-4">Or join our newsletter for exclusive content</p>
+          <p className="text-themed-muted text-xs mb-4">Or join our newsletter for exclusive content</p>
           <EmailCapture variant="inline" />
         </div>
       </div>
 
       {/* Bottom quote */}
       <div className={`absolute bottom-8 left-0 right-0 text-center transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <p className="text-stone-300 text-xs tracking-[0.2em] uppercase font-medium">
+        <p className="text-themed-muted text-xs tracking-[0.2em] uppercase font-medium">
           "We do not read books; we traverse landscapes of thought."
         </p>
       </div>

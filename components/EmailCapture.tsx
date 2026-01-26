@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import * as api from '../services/api';
 
 interface EmailCaptureProps {
   variant?: 'inline' | 'card' | 'banner';
@@ -17,13 +18,8 @@ const EmailCapture: React.FC<EmailCaptureProps> = ({ variant = 'card', onSubscri
 
     setLoading(true);
 
-    // Store locally for now — replace with your email service (Mailchimp, ConvertKit, etc.)
     try {
-      const subscribers = JSON.parse(localStorage.getItem('ebook_subscribers') || '[]');
-      if (!subscribers.includes(email)) {
-        subscribers.push(email);
-        localStorage.setItem('ebook_subscribers', JSON.stringify(subscribers));
-      }
+      await api.subscribe(email);
       setStatus('success');
       onSubscribe?.(email);
     } catch {
@@ -73,7 +69,7 @@ const EmailCapture: React.FC<EmailCaptureProps> = ({ variant = 'card', onSubscri
       <div className="bg-stone-800 rounded-2xl p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="flex-1 text-center sm:text-left">
-            <h3 className="text-white font-display font-medium text-lg mb-1">Get 3 Free Chapters Instantly</h3>
+            <h3 className="text-white font-display font-medium text-lg mb-1">Get 4 Free Chapters Instantly</h3>
             <p className="text-stone-400 text-sm">Join 2,000+ readers on their journey to wisdom.</p>
           </div>
           <form onSubmit={handleSubmit} className="flex gap-2 w-full sm:w-auto">
@@ -108,7 +104,7 @@ const EmailCapture: React.FC<EmailCaptureProps> = ({ variant = 'card', onSubscri
         </svg>
       </div>
       <h3 className="text-white font-display text-2xl font-medium mb-2">Start Your Free Journey</h3>
-      <p className="text-stone-400 text-sm mb-1">Get 3 free chapters from every book — no payment required.</p>
+      <p className="text-stone-400 text-sm mb-1">Get 4 free chapters from every book — no payment required.</p>
       <p className="text-stone-500 text-xs mb-8">Join 2,000+ seekers already on the path.</p>
 
       <form onSubmit={handleSubmit} className="max-w-sm mx-auto">

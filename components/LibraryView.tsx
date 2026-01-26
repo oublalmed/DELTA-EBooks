@@ -1,228 +1,187 @@
 
 import React, { useState } from 'react';
-import { Chapter, Book, FREE_CHAPTERS_PER_BOOK, PRICE_PER_BOOK } from '../types';
+import { Chapter, Book, FREE_CHAPTERS, PRICE_PER_BOOK } from '../types';
 
 interface LibraryViewProps {
   book: Book;
   completedIds: number[];
-  isBookUnlocked: boolean;
+  isBookPurchased: boolean;
+  freeChapters: number;
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
   onBack: () => void;
   onUnlock: () => void;
 }
 
-const accentStyles: Record<string, { progressBg: string; badgeBg: string; hoverText: string; tagBg: string; tagText: string }> = {
-  rose: { progressBg: 'bg-rose-500', badgeBg: 'bg-rose-500', hoverText: 'group-hover:text-rose-700', tagBg: 'bg-rose-50', tagText: 'text-rose-600' },
-  indigo: { progressBg: 'bg-indigo-500', badgeBg: 'bg-indigo-500', hoverText: 'group-hover:text-indigo-700', tagBg: 'bg-indigo-50', tagText: 'text-indigo-600' },
-  stone: { progressBg: 'bg-stone-500', badgeBg: 'bg-stone-600', hoverText: 'group-hover:text-stone-900', tagBg: 'bg-stone-100', tagText: 'text-stone-600' },
-  emerald: { progressBg: 'bg-emerald-500', badgeBg: 'bg-emerald-500', hoverText: 'group-hover:text-emerald-700', tagBg: 'bg-emerald-50', tagText: 'text-emerald-600' },
+const accentMap: Record<string, { bg: string; text: string; badge: string; border: string }> = {
+  rose: { bg: 'bg-rose-50', text: 'text-rose-600', badge: 'bg-rose-500', border: 'border-rose-200' },
+  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', badge: 'bg-indigo-500', border: 'border-indigo-200' },
+  stone: { bg: 'bg-stone-100', text: 'text-stone-600', badge: 'bg-stone-500', border: 'border-stone-300' },
+  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-500', border: 'border-emerald-200' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnlocked, onSelect, onChat, onBack, onUnlock }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPurchased, freeChapters, onSelect, onChat, onBack, onUnlock }) => {
   const [search, setSearch] = useState('');
+  const colors = accentMap[book.accentColor] || accentMap.stone;
+  const progress = book.chapters.length > 0 ? Math.round((completedIds.length / book.chapters.length) * 100) : 0;
 
-  const filteredChapters = book.chapters.filter(c =>
-    c.title.toLowerCase().includes(search.toLowerCase()) ||
-    c.summary.toLowerCase().includes(search.toLowerCase())
+  const filteredChapters = book.chapters.filter(ch =>
+    ch.title.toLowerCase().includes(search.toLowerCase()) ||
+    ch.subtitle.toLowerCase().includes(search.toLowerCase())
   );
 
-  const progressPercent = Math.round((completedIds.length / book.chapters.length) * 100);
-  const styles = accentStyles[book.accentColor] || accentStyles.stone;
-  const readingTime = Math.ceil(book.chapters.length * 3.5);
+  const getChapterStatus = (chapter: Chapter) => {
+    if (isBookPurchased) return 'accessible';
+    if (chapter.id <= 2) return 'free';
+    if (chapter.id === 3) return 'partial';
+    if (chapter.id === 4) return 'teaser';
+    return 'locked';
+  };
 
   return (
-    <div className="min-h-screen bg-[#fdfcf9]">
-      {/* Hero header with book cover background */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img src={book.coverImage} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-[#fdfcf9]" />
-        </div>
+    <div className="min-h-screen bg-themed">
+      {/* Hero Header */}
+      <div className="relative h-72 sm:h-80 overflow-hidden">
+        <img src={book.coverImage} alt={book.title} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
-        <div className="relative max-w-6xl mx-auto px-6 pt-8 pb-20">
-          {/* Navigation */}
-          <div className="flex items-center justify-between mb-16">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-white/70 hover:text-white transition-all text-xs font-bold tracking-widest uppercase bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-full backdrop-blur-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Nav */}
+        <div className="absolute top-0 left-0 right-0 p-6">
+          <div className="flex items-center justify-between">
+            <button onClick={onBack} className="flex items-center gap-2 text-white/80 hover:text-white transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Library
+              <span className="text-sm font-medium">Library</span>
             </button>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onChat}
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-6 py-2.5 rounded-full transition-all font-medium text-sm border border-white/10"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-                Ask Companion
-              </button>
-            </div>
+            <button onClick={onChat} className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-white text-xs font-bold hover:bg-white/20 transition-all">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              AI Companion
+            </button>
           </div>
+        </div>
 
-          {/* Book info */}
-          <div className="max-w-2xl animate-fadeIn">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-white/80 text-[10px] font-bold uppercase tracking-wider">
-                {book.subtitle}
-              </div>
-              {isBookUnlocked ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+        {/* Book info */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-2 mb-3">
+              {isBookPurchased ? (
+                <span className="bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
                   Full Access
-                </div>
+                </span>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 backdrop-blur-sm text-amber-300 text-[10px] font-bold uppercase tracking-wider">
-                  {FREE_CHAPTERS_PER_BOOK} Free Chapters
-                </div>
+                <span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                  {freeChapters} Free Chapters
+                </span>
               )}
             </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display text-white mb-4 font-medium leading-tight">{book.title}</h1>
-            <p className="text-white/60 font-serif italic text-lg mb-8 max-w-lg">{book.description}</p>
-
-            {/* Stats row */}
-            <div className="flex flex-wrap items-center gap-6 text-white/50 text-xs">
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                {book.chapters.length} chapters
-              </span>
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                ~{readingTime} min read
-              </span>
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                {book.author}
-              </span>
+            <h1 className="text-white text-3xl sm:text-4xl font-display font-medium mb-2">{book.title}</h1>
+            <div className="flex items-center gap-4 text-white/60 text-xs">
+              <span>{book.author}</span>
+              <span>&middot;</span>
+              <span>{book.chapters.length} chapters</span>
+              <span>&middot;</span>
+              <span>~{book.chapters.length * 5} min read</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content area */}
-      <div className="max-w-6xl mx-auto px-6 -mt-4">
-        {/* Search and progress bar */}
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-lg p-4 sm:p-5 mb-10 animate-slideUp flex flex-col sm:flex-row items-center gap-4">
-          <div className="flex-1 w-full relative">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search chapters by title or topic..."
-              className="w-full pl-11 pr-4 py-3 bg-stone-50 rounded-xl outline-none text-sm focus:ring-2 focus:ring-stone-200 transition-all"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Progress */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 h-2 bg-themed-muted rounded-full overflow-hidden">
+            <div className={`h-full ${colors.badge} rounded-full transition-all duration-700`} style={{ width: `${progress}%` }} />
           </div>
-          <div className="flex items-center gap-4 px-4 sm:border-l border-stone-100">
-            <div className="w-28 h-2 bg-stone-100 rounded-full overflow-hidden">
-              <div className={`h-full ${styles.progressBg} rounded-full transition-all duration-700`} style={{ width: `${progressPercent}%` }} />
-            </div>
-            <span className="text-sm font-bold text-stone-700 whitespace-nowrap">{progressPercent}%</span>
-          </div>
+          <span className="text-sm font-bold text-themed-sub">{progress}% complete</span>
         </div>
 
-        {/* Unlock banner for non-premium users */}
-        {!isBookUnlocked && (
-          <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-white font-medium text-sm">Chapters {FREE_CHAPTERS_PER_BOOK + 1}-{book.chapters.length} are premium</p>
-                <p className="text-stone-400 text-xs">Unlock all chapters for ${PRICE_PER_BOOK}</p>
-              </div>
+        {/* Search */}
+        <div className="relative mb-6">
+          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-themed-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search chapters..."
+            className="w-full pl-11 pr-4 py-3 bg-themed-card border border-themed rounded-xl text-themed text-sm outline-none focus:ring-2 focus:ring-stone-300 transition-all"
+          />
+        </div>
+
+        {/* Unlock banner */}
+        {!isBookPurchased && (
+          <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-white font-display text-lg font-medium">Unlock All {book.chapters.length} Chapters</h3>
+              <p className="text-stone-400 text-sm">One-time payment &middot; Lifetime access &middot; PDF download included</p>
             </div>
-            <button
-              onClick={onUnlock}
-              className="bg-white text-stone-800 px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap"
-            >
-              Unlock Book
+            <button onClick={onUnlock} className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap">
+              Buy for ${PRICE_PER_BOOK}
             </button>
           </div>
         )}
 
-        {/* Chapter count */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-stone-400 text-sm">
-            {filteredChapters.length === book.chapters.length
-              ? `All ${book.chapters.length} chapters`
-              : `${filteredChapters.length} of ${book.chapters.length} chapters`}
-          </p>
-          <p className="text-stone-400 text-sm">{completedIds.length} completed</p>
-        </div>
-
-        {/* Chapter grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
+        {/* Chapters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredChapters.map((chapter, index) => {
+            const status = getChapterStatus(chapter);
             const isCompleted = completedIds.includes(chapter.id);
-            const isFree = chapter.id <= FREE_CHAPTERS_PER_BOOK;
-            const isLocked = !isFree && !isBookUnlocked;
+            const isLocked = status === 'locked';
 
             return (
               <div
                 key={chapter.id}
-                onClick={() => onSelect(chapter)}
-                className="group cursor-pointer animate-fadeIn"
+                onClick={() => !isLocked ? onSelect(chapter) : onUnlock()}
+                className={`group cursor-pointer animate-fadeIn ${isLocked ? 'opacity-70' : ''}`}
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                <div className={`relative bg-white border rounded-2xl overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1 ${isCompleted ? 'border-stone-200' : 'border-stone-100'} ${isLocked ? 'opacity-80' : ''}`}>
-                  {/* Image */}
-                  <div className="relative h-44 overflow-hidden">
-                    <img src={chapter.image} className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ${isLocked ? 'blur-[2px]' : ''}`} alt={chapter.title} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <div className={`bg-themed-card border border-themed rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-300 ${isLocked ? '' : 'hover:-translate-y-0.5'}`}>
+                  {/* Chapter image */}
+                  <div className="relative h-32 overflow-hidden">
+                    <img src={chapter.image} alt={chapter.title} className={`w-full h-full object-cover ${isLocked ? 'blur-sm' : 'group-hover:scale-105'} transition-all duration-500`} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
 
                     {/* Chapter number */}
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-xs font-bold text-stone-700">{chapter.id}</span>
+                    <div className="absolute top-3 left-3">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        isCompleted ? 'bg-emerald-500 text-white' : isLocked ? 'bg-black/50 text-white/70' : `${colors.badge} text-white`
+                      }`}>
+                        {isCompleted ? (
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                        ) : chapter.id}
+                      </div>
                     </div>
 
-                    {/* Status badges */}
-                    {isCompleted && (
-                      <div className={`absolute top-3 right-3 ${styles.badgeBg} text-white p-1.5 rounded-full shadow-lg`}>
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                      </div>
-                    )}
-                    {isLocked && !isCompleted && (
-                      <div className="absolute top-3 right-3 bg-stone-800/80 backdrop-blur-sm text-white p-1.5 rounded-full shadow-lg">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                    )}
-                    {isFree && !isCompleted && !isBookUnlocked && (
-                      <div className="absolute top-3 right-3 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
-                        Free
+                    {/* Status badge */}
+                    <div className="absolute top-3 right-3">
+                      {status === 'free' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Free</span>}
+                      {status === 'partial' && <span className="bg-amber-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Preview</span>}
+                      {status === 'teaser' && <span className="bg-orange-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Teaser</span>}
+                      {status === 'locked' && (
+                        <span className="bg-stone-700 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
+                          Locked
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Lock overlay */}
+                    {isLocked && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <svg className="w-8 h-8 text-white/50" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
                       </div>
                     )}
                   </div>
 
                   {/* Content */}
-                  <div className="p-5">
-                    <h3 className={`text-lg font-display text-stone-800 ${styles.hoverText} transition-colors leading-snug font-medium mb-1.5`}>
-                      {chapter.title}
-                    </h3>
-                    <p className="text-stone-400 text-xs italic font-serif mb-3">{chapter.subtitle}</p>
-                    <p className="text-stone-500 text-sm leading-relaxed line-clamp-2">{chapter.summary}</p>
-
-                    {isLocked && (
-                      <div className="mt-3 flex items-center gap-1.5 text-stone-400 text-xs">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <span>Premium chapter — unlock to read</span>
-                      </div>
-                    )}
+                  <div className="p-4">
+                    <h3 className="text-themed font-medium text-sm mb-1 leading-snug">{chapter.title}</h3>
+                    <p className="text-themed-muted text-xs leading-relaxed line-clamp-2">{chapter.summary}</p>
                   </div>
                 </div>
               </div>

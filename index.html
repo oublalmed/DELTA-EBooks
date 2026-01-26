@@ -1,170 +1,151 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="The Universal Wisdom Library — An interactive philosophical e-book collection by Mohamed Oublal featuring AI-guided insights on relationships, resilience, stoicism, and mindful living." />
+    <meta name="description" content="The Universal Wisdom Library — Premium philosophical e-books by Mohamed Oublal. Deep wisdom on relationships, resilience, stoicism, and mindful living. Buy once, own forever." />
     <meta name="theme-color" content="#fdfcf9" />
     <meta name="author" content="Mohamed Oublal" />
-    <meta name="keywords" content="ebooks, philosophy, relationships, stoicism, mindfulness, self-help, personal growth, Mohamed Oublal, DELTA EBooks" />
+    <meta name="keywords" content="ebooks, philosophy, relationships, stoicism, mindfulness, self-help, personal growth, Mohamed Oublal, DELTA EBooks, buy books online, digital books" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="The Universal Wisdom Library — DELTA EBooks" />
-    <meta property="og:description" content="4 transformative books, 80 chapters of philosophical wisdom with AI-guided insights. Explore relationships, inner purpose, stoicism, and mindful living." />
+    <meta property="og:title" content="DELTA EBooks — The Universal Wisdom Library" />
+    <meta property="og:description" content="4 transformative books, 80 chapters of philosophical wisdom. Buy once, own forever. Read online + download PDF." />
     <meta property="og:image" content="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=1200" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="The Universal Wisdom Library — DELTA EBooks" />
-    <meta name="twitter:description" content="4 transformative books, 80 chapters of philosophical wisdom with AI-guided insights." />
+    <meta name="twitter:title" content="DELTA EBooks — The Universal Wisdom Library" />
+    <meta name="twitter:description" content="4 transformative books, 80 chapters of philosophical wisdom. Buy once, own forever." />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=1200" />
 
-    <title>The Universal Wisdom Library — DELTA EBooks</title>
+    <title>DELTA EBooks — The Universal Wisdom Library</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>" />
 
-    <!-- PayPal SDK — Replace YOUR_PAYPAL_CLIENT_ID with your real PayPal Client ID -->
-    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
     <style>
       * { box-sizing: border-box; }
+
+      /* ── Theme Variables ── */
+      :root {
+        --bg-primary: #fdfcf9;
+        --bg-card: #ffffff;
+        --bg-muted: #f5f5f4;
+        --text-primary: #1c1917;
+        --text-secondary: #57534e;
+        --text-muted: #a8a29e;
+        --border: #e7e5e4;
+        --accent: #be123c;
+        --accent-soft: #fff1f2;
+        --glass-bg: rgba(253, 252, 249, 0.8);
+        --scrollbar-thumb: #d6d3d1;
+      }
+
+      [data-theme="dark"] {
+        --bg-primary: #0c0a09;
+        --bg-card: #1c1917;
+        --bg-muted: #292524;
+        --text-primary: #fafaf9;
+        --text-secondary: #d6d3d1;
+        --text-muted: #78716c;
+        --border: #44403c;
+        --accent: #fb7185;
+        --accent-soft: rgba(251, 113, 133, 0.1);
+        --glass-bg: rgba(12, 10, 9, 0.85);
+        --scrollbar-thumb: #57534e;
+      }
+
+      [data-theme="sepia"] {
+        --bg-primary: #f5f0e8;
+        --bg-card: #faf6ee;
+        --bg-muted: #ede8de;
+        --text-primary: #3d3229;
+        --text-secondary: #6b5c4d;
+        --text-muted: #9e8e7e;
+        --border: #d9d0c3;
+        --accent: #b45309;
+        --accent-soft: rgba(180, 83, 9, 0.1);
+        --glass-bg: rgba(245, 240, 232, 0.85);
+        --scrollbar-thumb: #c4b8a8;
+      }
+
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #fdfcf9;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.3s, color 0.3s;
       }
-      .font-serif {
-        font-family: 'Crimson Pro', serif;
-      }
-      .font-display {
-        font-family: 'Playfair Display', serif;
-      }
+
+      .font-serif { font-family: 'Crimson Pro', serif; }
+      .font-display { font-family: 'Playfair Display', serif; }
+
+      /* ── Theme utility classes ── */
+      .bg-themed { background-color: var(--bg-primary); }
+      .bg-themed-card { background-color: var(--bg-card); }
+      .bg-themed-muted { background-color: var(--bg-muted); }
+      .text-themed { color: var(--text-primary); }
+      .text-themed-sub { color: var(--text-secondary); }
+      .text-themed-muted { color: var(--text-muted); }
+      .border-themed { border-color: var(--border); }
 
       /* Custom scrollbar */
       ::-webkit-scrollbar { width: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+      ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+      /* Selection */
+      ::selection { background: rgba(190, 18, 60, 0.15); color: #881337; }
+      [data-theme="dark"] ::selection { background: rgba(251, 113, 133, 0.2); color: #fda4af; }
 
       /* Animations */
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes slideUp {
-        from { opacity: 0; transform: translateY(40px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes slideInLeft {
-        from { opacity: 0; transform: translateX(-30px); }
-        to { opacity: 1; transform: translateX(0); }
-      }
-      @keyframes slideInRight {
-        from { opacity: 0; transform: translateX(30px); }
-        to { opacity: 1; transform: translateX(0); }
-      }
-      @keyframes scaleIn {
-        from { opacity: 0; transform: scale(0.9); }
-        to { opacity: 1; transform: scale(1); }
-      }
-      @keyframes float {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
-      }
-      @keyframes pulse-soft {
-        0%, 100% { opacity: 0.4; }
-        50% { opacity: 0.8; }
-      }
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-      @keyframes gradient-shift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-      }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+      @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+      @keyframes pulse-soft { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
       .animate-fadeIn { animation: fadeIn 0.8s ease-out forwards; }
       .animate-fadeInDown { animation: fadeInDown 0.6s ease-out forwards; }
       .animate-slideUp { animation: slideUp 0.6s ease-out forwards; }
-      .animate-slideInLeft { animation: slideInLeft 0.6s ease-out forwards; }
-      .animate-slideInRight { animation: slideInRight 0.6s ease-out forwards; }
       .animate-scaleIn { animation: scaleIn 0.5s ease-out forwards; }
       .animate-float { animation: float 6s ease-in-out infinite; }
       .animate-pulse-soft { animation: pulse-soft 3s ease-in-out infinite; }
-      .animate-shimmer {
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-        background-size: 200% 100%;
-        animation: shimmer 2s infinite;
-      }
-      .animate-gradient {
-        background-size: 200% 200%;
-        animation: gradient-shift 8s ease infinite;
-      }
 
-      /* Stagger animations */
       .stagger-1 { animation-delay: 0.1s; opacity: 0; }
       .stagger-2 { animation-delay: 0.2s; opacity: 0; }
       .stagger-3 { animation-delay: 0.3s; opacity: 0; }
       .stagger-4 { animation-delay: 0.4s; opacity: 0; }
-      .stagger-5 { animation-delay: 0.5s; opacity: 0; }
-      .stagger-6 { animation-delay: 0.6s; opacity: 0; }
-
-      /* 3D perspective */
-      .perspective-1000 { perspective: 1000px; }
-      .preserve-3d { transform-style: preserve-3d; }
 
       /* Glass morphism */
-      .glass {
-        background: rgba(253, 252, 249, 0.7);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-      }
-      .glass-dark {
-        background: rgba(28, 25, 23, 0.8);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-      }
+      .glass { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
 
       /* Gradient text */
-      .gradient-text {
-        background: linear-gradient(135deg, #be123c, #9f1239, #831843);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
+      .gradient-text { background: linear-gradient(135deg, var(--accent), #9f1239); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-      /* Drop cap */
+      /* Drop cap for reader */
       .drop-cap::first-letter {
-        float: left;
-        font-size: 4.5rem;
-        line-height: 0.8;
-        margin-right: 0.5rem;
-        margin-top: 0.15rem;
-        font-family: 'Playfair Display', serif;
-        font-weight: 700;
-        color: #be123c;
+        float: left; font-size: 4.5rem; line-height: 0.8; margin-right: 0.5rem; margin-top: 0.15rem;
+        font-family: 'Playfair Display', serif; font-weight: 700; color: var(--accent);
       }
 
-      /* Selection styles */
-      ::selection {
-        background: rgba(190, 18, 60, 0.15);
-        color: #881337;
-      }
-
-      /* Text balance */
       h1, h2, h3 { text-wrap: balance; }
-
-      /* Smooth transitions on page navigation */
       .page-transition { animation: fadeIn 0.5s ease-out; }
+
+      /* Content fade for locked chapters */
+      .content-fade { position: relative; }
+      .content-fade::after {
+        content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 120px;
+        background: linear-gradient(to bottom, transparent, var(--bg-primary)); pointer-events: none;
+      }
+
+      /* Ad banner for free users */
+      .ad-banner { background: linear-gradient(135deg, var(--bg-muted), var(--bg-card)); border: 1px dashed var(--border); }
     </style>
   <script type="importmap">
 {
