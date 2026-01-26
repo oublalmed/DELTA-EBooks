@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BOOK_TITLE, AUTHOR, BOOK_SUBTITLE } from '../constants';
+import EmailCapture from './EmailCapture';
 
 interface LandingViewProps {
   onEnter: () => void;
@@ -51,7 +52,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
         </p>
 
         {/* Stats */}
-        <div className="flex items-center justify-center gap-8 mb-12">
+        <div className="flex items-center justify-center gap-8 mb-10">
           <div className="text-center">
             <div className="text-2xl font-display font-bold text-stone-800">{totalBooks}</div>
             <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Books</div>
@@ -63,22 +64,38 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
           </div>
           <div className="w-px h-10 bg-stone-200" />
           <div className="text-center">
-            <div className="text-2xl font-display font-bold text-stone-800">AI</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Companion</div>
+            <div className="text-2xl font-display font-bold text-stone-800">3</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-stone-400 font-bold mt-1">Free/Book</div>
           </div>
         </div>
 
-        <button
-          onClick={onEnter}
-          className="group relative inline-flex items-center justify-center px-12 py-5 font-medium tracking-wide text-white transition-all duration-300 bg-stone-800 rounded-full hover:bg-stone-700 hover:shadow-2xl hover:shadow-stone-300/50 hover:-translate-y-0.5 active:translate-y-0 active:shadow-lg focus:outline-none"
-        >
-          <span className="relative z-10 flex items-center gap-3">
-            Enter the Library
-            <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </span>
-        </button>
+        {/* Free chapters badge */}
+        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-xs font-bold mb-8">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+          </svg>
+          Start reading for free — no sign-up required
+        </div>
+
+        <div className="mb-12">
+          <button
+            onClick={onEnter}
+            className="group relative inline-flex items-center justify-center px-12 py-5 font-medium tracking-wide text-white transition-all duration-300 bg-stone-800 rounded-full hover:bg-stone-700 hover:shadow-2xl hover:shadow-stone-300/50 hover:-translate-y-0.5 active:translate-y-0 active:shadow-lg focus:outline-none"
+          >
+            <span className="relative z-10 flex items-center gap-3">
+              Enter the Library
+              <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        {/* Email capture */}
+        <div className={`max-w-md mx-auto transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <p className="text-stone-400 text-xs mb-4">Or join our newsletter for exclusive content</p>
+          <EmailCapture variant="inline" />
+        </div>
       </div>
 
       {/* Bottom quote */}

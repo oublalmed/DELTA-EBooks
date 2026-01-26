@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { Chapter, Book } from '../types';
+import { Chapter, Book, FREE_CHAPTERS_PER_BOOK, PRICE_PER_BOOK } from '../types';
 
 interface LibraryViewProps {
   book: Book;
   completedIds: number[];
+  isBookUnlocked: boolean;
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
   onBack: () => void;
+  onUnlock: () => void;
 }
 
 const accentStyles: Record<string, { progressBg: string; badgeBg: string; hoverText: string; tagBg: string; tagText: string }> = {
@@ -17,7 +19,7 @@ const accentStyles: Record<string, { progressBg: string; badgeBg: string; hoverT
   emerald: { progressBg: 'bg-emerald-500', badgeBg: 'bg-emerald-500', hoverText: 'group-hover:text-emerald-700', tagBg: 'bg-emerald-50', tagText: 'text-emerald-600' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect, onChat, onBack }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnlocked, onSelect, onChat, onBack, onUnlock }) => {
   const [search, setSearch] = useState('');
 
   const filteredChapters = book.chapters.filter(c =>
@@ -51,21 +53,35 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
               Library
             </button>
 
-            <button
-              onClick={onChat}
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-6 py-2.5 rounded-full transition-all font-medium text-sm border border-white/10"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              Ask Companion
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onChat}
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-6 py-2.5 rounded-full transition-all font-medium text-sm border border-white/10"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                Ask Companion
+              </button>
+            </div>
           </div>
 
           {/* Book info */}
           <div className="max-w-2xl animate-fadeIn">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-white/80 text-[10px] font-bold uppercase tracking-wider mb-4`}>
-              {book.subtitle}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-white/80 text-[10px] font-bold uppercase tracking-wider">
+                {book.subtitle}
+              </div>
+              {isBookUnlocked ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                  Full Access
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 backdrop-blur-sm text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                  {FREE_CHAPTERS_PER_BOOK} Free Chapters
+                </div>
+              )}
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-display text-white mb-4 font-medium leading-tight">{book.title}</h1>
             <p className="text-white/60 font-serif italic text-lg mb-8 max-w-lg">{book.description}</p>
@@ -113,6 +129,29 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
           </div>
         </div>
 
+        {/* Unlock banner for non-premium users */}
+        {!isBookUnlocked && (
+          <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm">Chapters {FREE_CHAPTERS_PER_BOOK + 1}-{book.chapters.length} are premium</p>
+                <p className="text-stone-400 text-xs">Unlock all chapters for ${PRICE_PER_BOOK}</p>
+              </div>
+            </div>
+            <button
+              onClick={onUnlock}
+              className="bg-white text-stone-800 px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap"
+            >
+              Unlock Book
+            </button>
+          </div>
+        )}
+
         {/* Chapter count */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-stone-400 text-sm">
@@ -127,6 +166,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
           {filteredChapters.map((chapter, index) => {
             const isCompleted = completedIds.includes(chapter.id);
+            const isFree = chapter.id <= FREE_CHAPTERS_PER_BOOK;
+            const isLocked = !isFree && !isBookUnlocked;
+
             return (
               <div
                 key={chapter.id}
@@ -134,10 +176,10 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
                 className="group cursor-pointer animate-fadeIn"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                <div className={`relative bg-white border rounded-2xl overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1 ${isCompleted ? 'border-stone-200' : 'border-stone-100'}`}>
+                <div className={`relative bg-white border rounded-2xl overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1 ${isCompleted ? 'border-stone-200' : 'border-stone-100'} ${isLocked ? 'opacity-80' : ''}`}>
                   {/* Image */}
                   <div className="relative h-44 overflow-hidden">
-                    <img src={chapter.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={chapter.title} />
+                    <img src={chapter.image} className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ${isLocked ? 'blur-[2px]' : ''}`} alt={chapter.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
                     {/* Chapter number */}
@@ -145,10 +187,22 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
                       <span className="text-xs font-bold text-stone-700">{chapter.id}</span>
                     </div>
 
-                    {/* Completed badge */}
+                    {/* Status badges */}
                     {isCompleted && (
                       <div className={`absolute top-3 right-3 ${styles.badgeBg} text-white p-1.5 rounded-full shadow-lg`}>
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                      </div>
+                    )}
+                    {isLocked && !isCompleted && (
+                      <div className="absolute top-3 right-3 bg-stone-800/80 backdrop-blur-sm text-white p-1.5 rounded-full shadow-lg">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                    )}
+                    {isFree && !isCompleted && !isBookUnlocked && (
+                      <div className="absolute top-3 right-3 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
+                        Free
                       </div>
                     )}
                   </div>
@@ -160,6 +214,15 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, onSelect,
                     </h3>
                     <p className="text-stone-400 text-xs italic font-serif mb-3">{chapter.subtitle}</p>
                     <p className="text-stone-500 text-sm leading-relaxed line-clamp-2">{chapter.summary}</p>
+
+                    {isLocked && (
+                      <div className="mt-3 flex items-center gap-1.5 text-stone-400 text-xs">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span>Premium chapter — unlock to read</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

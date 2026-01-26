@@ -36,3 +36,12 @@ export interface BookProgress {
 export interface UserProgress {
   books: Record<string, BookProgress>;
 }
+
+export interface PremiumState {
+  unlockedBooks: string[];
+  allAccess: boolean;
+}
+
+export const FREE_CHAPTERS_PER_BOOK = 3;
+export const PRICE_PER_BOOK = 9.99;
+export const PRICE_ALL_ACCESS = 24.99;
