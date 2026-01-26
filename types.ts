@@ -1,4 +1,6 @@
 
+// ── Book & Chapter Types ──
+
 export interface Chapter {
   id: number;
   title: string;
@@ -7,6 +9,11 @@ export interface Chapter {
   content: string;
   reflectionPrompt: string;
   image: string;
+  // Access control fields (from API)
+  isPartial?: boolean;
+  isTeaser?: boolean;
+  isLocked?: boolean;
+  accessMessage?: string;
 }
 
 export interface Book {
@@ -19,14 +26,39 @@ export interface Book {
   accentColor: string;
   chapters: Chapter[];
   systemPrompt: string;
+  price?: number;
+  currency?: string;
 }
 
-export type ViewState = 'landing' | 'shelf' | 'library' | 'reader' | 'chat';
+// ── View State ──
+
+export type ViewState = 'landing' | 'shelf' | 'library' | 'reader' | 'chat' | 'auth' | 'dashboard';
+export type ThemeMode = 'light' | 'dark' | 'sepia';
+
+// ── User & Auth ──
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  created_at: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  purchasedBookIds: string[];
+  isLoading: boolean;
+}
+
+// ── Chat ──
 
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
 }
+
+// ── Progress ──
 
 export interface BookProgress {
   completedIds: number[];
@@ -36,3 +68,35 @@ export interface BookProgress {
 export interface UserProgress {
   books: Record<string, BookProgress>;
 }
+
+// ── Purchases & Downloads ──
+
+export interface PurchaseRecord {
+  id: number;
+  book_id: string;
+  book_title: string;
+  cover_image?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  purchased_at: string;
+}
+
+export interface DownloadInfo {
+  bookId: string;
+  downloadsUsed: number;
+  downloadsRemaining: number;
+  maxDownloads: number;
+}
+
+// ── Reader Settings ──
+
+export interface ReaderSettings {
+  fontSize: number; // 14-24
+  theme: ThemeMode;
+}
+
+// ── Constants ──
+
+export const FREE_CHAPTERS = 4;
+export const PRICE_PER_BOOK = 9.99;

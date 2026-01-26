@@ -45,10 +45,10 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#fdfcf9]">
+    <div className="h-screen flex flex-col bg-themed">
       {/* Header */}
-      <header className="glass border-b border-stone-100/80 px-6 h-16 flex items-center shrink-0 z-10">
-        <button onClick={onBack} className="mr-4 text-stone-400 hover:text-stone-800 transition-colors">
+      <header className="bg-themed-card/80 backdrop-blur-md border-b border-themed px-6 h-16 flex items-center shrink-0 z-10">
+        <button onClick={onBack} className="mr-4 text-themed-muted hover:text-themed transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
         </button>
         <div className="flex items-center gap-3">
@@ -56,8 +56,8 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
             <span className="text-white text-xs">&#x2726;</span>
           </div>
           <div>
-            <h2 className="text-sm font-display font-medium text-stone-800">{book.title}</h2>
-            <p className="text-[10px] text-stone-400 uppercase tracking-wider font-bold">AI Companion</p>
+            <h2 className="text-sm font-display font-medium text-themed">{book.title}</h2>
+            <p className="text-[10px] text-themed-muted uppercase tracking-wider font-bold">AI Companion</p>
           </div>
         </div>
       </header>
@@ -75,7 +75,7 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
               <div className={`max-w-[80%] p-4 sm:p-5 ${
                 msg.role === 'user'
                   ? 'bg-stone-800 text-white rounded-2xl rounded-br-md'
-                  : 'bg-white text-stone-700 shadow-sm border border-stone-100 rounded-2xl rounded-bl-md'
+                  : 'bg-themed-card text-themed-sub shadow-sm border border-themed rounded-2xl rounded-bl-md'
               }`}>
                 <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-serif">{msg.text}</p>
               </div>
@@ -88,11 +88,11 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
               <div className="w-7 h-7 rounded-full bg-stone-800 flex items-center justify-center shrink-0 mr-3 mt-1">
                 <span className="text-white text-[10px]">&#x2726;</span>
               </div>
-              <div className="bg-white border border-stone-100 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
+              <div className="bg-themed-card border border-themed rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-2 h-2 bg-themed-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-themed-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-themed-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -101,13 +101,13 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
           {/* Suggested prompts (only show when there's 1 message) */}
           {messages.length === 1 && !isTyping && (
             <div className="pt-4 animate-fadeIn">
-              <p className="text-stone-400 text-xs font-bold uppercase tracking-wider mb-3">Suggested questions</p>
+              <p className="text-themed-muted text-xs font-bold uppercase tracking-wider mb-3">Suggested questions</p>
               <div className="flex flex-wrap gap-2">
                 {suggestedPrompts.map((prompt, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(prompt)}
-                    className="text-sm text-stone-600 bg-white border border-stone-200 px-4 py-2 rounded-full hover:border-stone-400 hover:text-stone-800 transition-all"
+                    className="text-sm text-themed-sub bg-themed-card border border-themed px-4 py-2 rounded-full hover:border-stone-400 hover:text-themed transition-all"
                   >
                     {prompt}
                   </button>
@@ -119,13 +119,13 @@ const ChatView: React.FC<ChatViewProps> = ({ book, onBack }) => {
       </div>
 
       {/* Input area */}
-      <div className="px-4 sm:px-6 py-4 bg-white border-t border-stone-100">
+      <div className="px-4 sm:px-6 py-4 bg-themed-card border-t border-themed">
         <div className="max-w-3xl mx-auto relative">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            className="w-full pl-5 pr-14 py-3.5 bg-stone-50 border border-stone-200 rounded-xl outline-none resize-none text-sm focus:ring-2 focus:ring-stone-200 focus:border-transparent transition-all"
+            className="w-full pl-5 pr-14 py-3.5 bg-themed-muted border border-themed rounded-xl outline-none resize-none text-sm text-themed focus:ring-2 focus:ring-stone-300 focus:border-transparent transition-all"
             rows={1}
             placeholder="Ask your companion anything..."
           />
