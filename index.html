@@ -4,17 +4,150 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>The True Relationship Guide</title>
+    <meta name="description" content="The Universal Wisdom Library — An interactive philosophical e-book collection by Mohamed Oublal featuring AI-guided insights on relationships, resilience, stoicism, and mindful living." />
+    <meta name="theme-color" content="#fdfcf9" />
+    <meta name="author" content="Mohamed Oublal" />
+    <title>The Universal Wisdom Library — DELTA EBooks</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
     <style>
+      * { box-sizing: border-box; }
       body {
         font-family: 'Inter', sans-serif;
         background-color: #fdfcf9;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       .font-serif {
         font-family: 'Crimson Pro', serif;
       }
+      .font-display {
+        font-family: 'Playfair Display', serif;
+      }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+
+      /* Animations */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(40px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      @keyframes pulse-soft {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 0.8; }
+      }
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      .animate-fadeIn { animation: fadeIn 0.8s ease-out forwards; }
+      .animate-fadeInDown { animation: fadeInDown 0.6s ease-out forwards; }
+      .animate-slideUp { animation: slideUp 0.6s ease-out forwards; }
+      .animate-slideInLeft { animation: slideInLeft 0.6s ease-out forwards; }
+      .animate-slideInRight { animation: slideInRight 0.6s ease-out forwards; }
+      .animate-scaleIn { animation: scaleIn 0.5s ease-out forwards; }
+      .animate-float { animation: float 6s ease-in-out infinite; }
+      .animate-pulse-soft { animation: pulse-soft 3s ease-in-out infinite; }
+      .animate-shimmer {
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite;
+      }
+      .animate-gradient {
+        background-size: 200% 200%;
+        animation: gradient-shift 8s ease infinite;
+      }
+
+      /* Stagger animations */
+      .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+      .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+      .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+      .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+      .stagger-5 { animation-delay: 0.5s; opacity: 0; }
+      .stagger-6 { animation-delay: 0.6s; opacity: 0; }
+
+      /* 3D perspective */
+      .perspective-1000 { perspective: 1000px; }
+      .preserve-3d { transform-style: preserve-3d; }
+
+      /* Glass morphism */
+      .glass {
+        background: rgba(253, 252, 249, 0.7);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+      .glass-dark {
+        background: rgba(28, 25, 23, 0.8);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+
+      /* Gradient text */
+      .gradient-text {
+        background: linear-gradient(135deg, #be123c, #9f1239, #831843);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      /* Drop cap */
+      .drop-cap::first-letter {
+        float: left;
+        font-size: 4.5rem;
+        line-height: 0.8;
+        margin-right: 0.5rem;
+        margin-top: 0.15rem;
+        font-family: 'Playfair Display', serif;
+        font-weight: 700;
+        color: #be123c;
+      }
+
+      /* Selection styles */
+      ::selection {
+        background: rgba(190, 18, 60, 0.15);
+        color: #881337;
+      }
+
+      /* Text balance */
+      h1, h2, h3 { text-wrap: balance; }
+
+      /* Smooth transitions on page navigation */
+      .page-transition { animation: fadeIn 0.5s ease-out; }
     </style>
   <script type="importmap">
 {

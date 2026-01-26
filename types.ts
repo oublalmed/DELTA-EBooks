@@ -21,7 +21,7 @@ export interface Book {
   systemPrompt: string;
 }
 
-export type ViewState = 'shelf' | 'library' | 'reader' | 'chat';
+export type ViewState = 'landing' | 'shelf' | 'library' | 'reader' | 'chat';
 
 export interface ChatMessage {
   role: 'user' | 'model';
