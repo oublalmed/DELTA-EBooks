@@ -74,10 +74,6 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
         <div className="absolute bottom-[-20%] right-[-15%] w-[50%] h-[50%] bg-rose-500/10 rounded-full blur-[120px] animate-pulse-soft" style={{ animationDelay: '2s' }} />
       </div>
 
-      <div className={`z-10 text-center max-w-3xl px-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        {/* Delta Wisdom Logo */}
-        <div className="mb-6">
-          <Logo size="hero" showText={false} />
       {/* Top navigation */}
       <div className={`relative z-20 flex items-center justify-between px-6 sm:px-10 pt-8 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="flex items-center gap-3">
@@ -97,6 +93,11 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
       {/* Main hero content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 sm:px-10">
         <div className={`text-center max-w-4xl transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          {/* Delta Wisdom Logo */}
+          <div className="mb-6">
+            <Logo size="hero" showText={false} />
+          </div>
+
           {/* Subtitle badge */}
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white/80 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-[0.3em] mb-8 animate-fadeIn stagger-1">
             <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -105,29 +106,6 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             {BOOK_SUBTITLE}
           </div>
 
-        <p className="text-xl text-themed-muted italic font-serif mb-4">
-          By {AUTHOR}
-        </p>
-        <p className="text-themed-sub font-serif text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-          A curated collection of philosophical journeys exploring love, purpose, resilience, and the art of mindful existence.
-        </p>
-
-        {/* Live reader count */}
-        <div className="flex items-center justify-center gap-2 mb-8 animate-fadeIn" style={{ animationDelay: '0.5s' }}>
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          <span className="text-themed-muted text-sm font-medium">
-            <span className="text-emerald-600 font-bold">{readerCount}</span> people reading right now
-          </span>
-        </div>
-
-        {/* Stats */}
-        <div className="flex items-center justify-center gap-8 mb-8">
-          <div className="text-center">
-            <div className="text-2xl font-display font-bold text-themed">{totalBooks}</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Books</div>
           {/* Main title */}
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-display text-white mb-6 leading-[1.05] font-medium text-shadow-hero animate-fadeIn stagger-2">
             {BOOK_TITLE}
@@ -149,6 +127,17 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
               Wisdom that transforms lives
             </span>
           </p>
+
+          {/* Live reader count */}
+          <div className="flex items-center justify-center gap-2 mb-8 animate-fadeIn" style={{ animationDelay: '0.5s' }}>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-themed-muted text-sm font-medium">
+              <span className="text-emerald-600 font-bold">{readerCount}</span> people reading right now
+            </span>
+          </div>
 
           {/* Stats row */}
           <div className="flex items-center justify-center gap-6 sm:gap-10 mb-10 animate-fadeIn stagger-4">

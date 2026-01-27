@@ -468,32 +468,30 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
           <p className="font-display text-3xl sm:text-4xl text-themed font-medium mb-2">Trusted by Thousands</p>
           <p className="text-themed-muted text-sm mt-2">2,847 readers &middot; 4.9 average rating</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-themed-card border border-themed rounded-2xl p-6 hover-lift animate-fadeIn" style={{ animationDelay: `${i * 0.1}s` }}>
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(t.rating)].map((_, s) => (
-                  <svg key={s} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                  </svg>
-                ))}
-              </div>
-              <p className="text-themed-sub font-serif italic leading-relaxed mb-5 text-sm">"{t.text}"</p>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center text-stone-600 text-xs font-bold">{t.avatar}</div>
-                <div>
-                  <p className="text-themed font-bold text-sm">{t.name}</p>
-                  <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold">{t.role}</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {testimonials.map((t, i) => (
+              <div key={i} className="bg-themed-card border border-themed rounded-2xl p-6 hover-lift animate-fadeIn" style={{ animationDelay: `${i * 0.1}s` }}>
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(t.rating)].map((_, s) => (
+                    <svg key={s} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-themed-sub font-serif italic leading-relaxed mb-5 text-sm">"{t.text}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center text-stone-600 text-xs font-bold">{t.avatar}</div>
+                  <div>
+                    <p className="text-themed font-bold text-sm">{t.name}</p>
+                    <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold">{t.role}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="text-left">
-              <p className="text-themed font-bold text-sm">{testimonials[testimonialIdx].name}</p>
-              <p className="text-themed-muted text-xs">{testimonials[testimonialIdx].role}</p>
-            </div>
+            ))}
           </div>
           {/* Dots */}
-          <div className="flex items-center justify-center gap-2 mt-6">
+          <div className="flex items-center justify-center gap-2">
             {testimonials.map((_, i) => (
               <button key={i} onClick={() => setTestimonialIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === testimonialIdx ? 'bg-stone-800 w-6' : 'bg-themed-muted'}`} />
             ))}
