@@ -12,6 +12,8 @@ import ChatView from './components/ChatView';
 import AuthView from './components/AuthView';
 import Dashboard from './components/Dashboard';
 import PricingModal from './components/PricingModal';
+import ExpressionSpaceView from './components/ExpressionSpaceView';
+import JourneyCalendarView from './components/JourneyCalendarView';
 
 const App: React.FC = () => {
   // ── View state ──
@@ -327,6 +329,8 @@ const App: React.FC = () => {
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
+            onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
+            onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
           />
         );
 
@@ -377,8 +381,24 @@ const App: React.FC = () => {
       case 'chat':
         return <ChatView book={currentBook!} onBack={() => setView('library')} />;
 
+      case 'expression':
+        return (
+          <ExpressionSpaceView
+            onBack={() => setView('shelf')}
+            onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
+          />
+        );
+
+      case 'journey':
+        return (
+          <JourneyCalendarView
+            onBack={() => setView('shelf')}
+            onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
+          />
+        );
+
       default:
-        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} />;
+        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }} onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }} />;
     }
   };
 

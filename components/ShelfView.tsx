@@ -18,6 +18,8 @@ interface ShelfViewProps {
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
+  onOpenExpression: () => void;
+  onOpenJourney: () => void;
 }
 
 const accentMap: Record<string, { bg: string; text: string; badge: string; gradient: string }> = {
@@ -55,7 +57,7 @@ const streakBadges = [
   { min: 100, label: 'Enlightened', icon: '👑' },
 ];
 
-const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, onSelect, onOpenPricing, onOpenBundle, onToggleTheme, onOpenAuth, onOpenDashboard }) => {
+const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, onSelect, onOpenPricing, onOpenBundle, onToggleTheme, onOpenAuth, onOpenDashboard, onOpenExpression, onOpenJourney }) => {
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const totalCompleted = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
@@ -522,6 +524,104 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
               <p className="text-themed-muted text-xs">{item.desc}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Expression Space & Journey Calendar */}
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <div className="text-center mb-10">
+          <div className="ornament-divider mb-4">
+            <span className="text-xs tracking-[0.4em] uppercase font-bold" style={{ color: 'var(--accent)' }}>Your Inner World</span>
+          </div>
+          <p className="font-display text-3xl text-themed font-medium mb-2">Reflect, Express, Grow</p>
+          <p className="text-themed-muted font-serif italic text-base max-w-lg mx-auto">Two powerful spaces designed for your personal journey of self-discovery and growth.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Expression Space Card */}
+          <div onClick={onOpenExpression} className="group cursor-pointer">
+            <div className="expression-nav-card premium-card relative bg-themed-card rounded-3xl overflow-hidden border border-themed">
+              <div className="relative h-48 sm:h-56 overflow-hidden">
+                <img
+                  src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=800"
+                  alt="Philosophical Expression"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                <div className="absolute top-4 left-4">
+                  <div className="bg-indigo-500 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Expressive Journal
+                  </div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <h3 className="text-white text-2xl font-display font-medium text-shadow-hero">Philosophical Expression Space</h3>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-themed-sub font-serif italic text-base leading-relaxed mb-4">
+                  A sacred space to express your feelings, experiences, adventures, successes, and deepest emotions. Write like a philosopher reflecting on life.
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider">Feelings</span>
+                    <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Insights</span>
+                    <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-bold uppercase tracking-wider">Stories</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider group-hover:gap-3 transition-all duration-300" style={{ color: 'var(--accent)' }}>
+                    <span>Enter</span>
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Journey Calendar Card */}
+          <div onClick={onOpenJourney} className="group cursor-pointer">
+            <div className="journey-nav-card premium-card relative bg-themed-card rounded-3xl overflow-hidden border border-themed">
+              <div className="relative h-48 sm:h-56 overflow-hidden">
+                <img
+                  src="https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&q=80&w=800"
+                  alt="Personal Journey"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                <div className="absolute top-4 left-4">
+                  <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Personal Calendar
+                  </div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <h3 className="text-white text-2xl font-display font-medium text-shadow-hero">Personal Journey Calendar</h3>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-themed-sub font-serif italic text-base leading-relaxed mb-4">
+                  Track your journey day by day. Record emotions, milestones, challenges, and reflections. Watch your growth unfold over time.
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">Tracking</span>
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">Growth</span>
+                    <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wider">Patterns</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider group-hover:gap-3 transition-all duration-300" style={{ color: 'var(--accent)' }}>
+                    <span>Enter</span>
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
