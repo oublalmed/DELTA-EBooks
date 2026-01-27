@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { BOOK_TITLE, AUTHOR, BOOK_SUBTITLE } from '../constants';
 import { FREE_CHAPTERS } from '../types';
 import EmailCapture from './EmailCapture';
+import Logo from './Logo';
 
 interface LandingViewProps {
   onEnter: () => void;
@@ -12,10 +13,29 @@ interface LandingViewProps {
 
 const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalChapters }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [readerCount, setReaderCount] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 100);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Animated live reader count
+  useEffect(() => {
+    const base = 127 + Math.floor(Math.random() * 40);
+    let current = 0;
+    const interval = setInterval(() => {
+      current += Math.ceil(base / 30);
+      if (current >= base) { current = base; clearInterval(interval); }
+      setReaderCount(current);
+    }, 40);
+
+    // Fluctuate the count every 8-15 seconds for realism
+    const fluctuate = setInterval(() => {
+      setReaderCount(prev => prev + Math.floor(Math.random() * 7) - 3);
+    }, 10000);
+
+    return () => { clearInterval(interval); clearInterval(fluctuate); };
   }, []);
 
   return (
@@ -32,9 +52,9 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-32 bg-gradient-to-t from-transparent via-stone-200 to-transparent opacity-50" />
 
       <div className={`z-10 text-center max-w-3xl px-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        {/* Library emblem */}
-        <div className="mb-8 inline-flex items-center justify-center w-20 h-20 rounded-full border border-themed bg-themed-card/60 shadow-sm">
-          <span className="text-3xl">&#x2726;</span>
+        {/* Delta Wisdom Logo */}
+        <div className="mb-6">
+          <Logo size="hero" showText={false} />
         </div>
 
         <h2 className="text-sm tracking-[0.4em] text-themed-muted uppercase mb-6 font-medium">{BOOK_SUBTITLE}</h2>
@@ -48,12 +68,23 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
         <p className="text-xl text-themed-muted italic font-serif mb-4">
           By {AUTHOR}
         </p>
-        <p className="text-themed-sub font-serif text-lg mb-12 max-w-lg mx-auto leading-relaxed">
+        <p className="text-themed-sub font-serif text-lg mb-10 max-w-lg mx-auto leading-relaxed">
           A curated collection of philosophical journeys exploring love, purpose, resilience, and the art of mindful existence.
         </p>
 
+        {/* Live reader count */}
+        <div className="flex items-center justify-center gap-2 mb-8 animate-fadeIn" style={{ animationDelay: '0.5s' }}>
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span className="text-themed-muted text-sm font-medium">
+            <span className="text-emerald-600 font-bold">{readerCount}</span> people reading right now
+          </span>
+        </div>
+
         {/* Stats */}
-        <div className="flex items-center justify-center gap-8 mb-10">
+        <div className="flex items-center justify-center gap-8 mb-8">
           <div className="text-center">
             <div className="text-2xl font-display font-bold text-themed">{totalBooks}</div>
             <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Books</div>

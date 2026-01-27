@@ -1,8 +1,9 @@
 
-import React from 'react';
-import { Book, UserProgress, User, ThemeMode, FREE_CHAPTERS, PRICE_PER_BOOK } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Book, UserProgress, User, ThemeMode, ReadingStreak, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE, BUNDLE_SAVINGS } from '../types';
 import { AUTHOR } from '../constants';
 import EmailCapture from './EmailCapture';
+import Logo from './Logo';
 
 interface ShelfViewProps {
   books: Book[];
@@ -10,8 +11,10 @@ interface ShelfViewProps {
   purchasedBookIds: string[];
   user: User | null;
   theme: ThemeMode;
+  streak: ReadingStreak;
   onSelect: (book: Book) => void;
   onOpenPricing: (book?: Book) => void;
+  onOpenBundle: () => void;
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
@@ -25,9 +28,11 @@ const accentMap: Record<string, { bg: string; text: string; badge: string }> = {
 };
 
 const testimonials = [
-  { name: "Sara M.", text: "This collection changed how I see relationships. The reflection prompts are incredibly powerful.", role: "Reader" },
-  { name: "James K.", text: "The Stoic book alone is worth every penny. I read a chapter every morning as part of my routine.", role: "Daily Reader" },
-  { name: "Amira L.", text: "The AI companion feels like having a wise mentor available 24/7. Truly unique reading experience.", role: "Book Owner" },
+  { name: "Sara M.", text: "This collection changed how I see relationships. The reflection prompts are incredibly powerful.", role: "Reader", avatar: "S" },
+  { name: "James K.", text: "The Stoic book alone is worth every penny. I read a chapter every morning as part of my routine.", role: "Daily Reader", avatar: "J" },
+  { name: "Amira L.", text: "The AI companion feels like having a wise mentor available 24/7. Truly unique reading experience.", role: "Book Owner", avatar: "A" },
+  { name: "Daniel R.", text: "Bought the bundle on a whim. Best $29.99 I've ever spent. The mindfulness book changed my mornings.", role: "Bundle Owner", avatar: "D" },
+  { name: "Leila H.", text: "I've read dozens of self-help books. This collection is different — it makes you THINK, not just read.", role: "Verified Buyer", avatar: "L" },
 ];
 
 const themeIcons: Record<ThemeMode, string> = {
@@ -36,7 +41,16 @@ const themeIcons: Record<ThemeMode, string> = {
   sepia: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
 };
 
-const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, onSelect, onOpenPricing, onToggleTheme, onOpenAuth, onOpenDashboard }) => {
+const streakBadges = [
+  { min: 3, label: 'Curious Mind', icon: '🌱' },
+  { min: 7, label: 'Week Warrior', icon: '🔥' },
+  { min: 14, label: 'Deep Thinker', icon: '🧠' },
+  { min: 30, label: 'Philosopher', icon: '🏛️' },
+  { min: 60, label: 'Wisdom Seeker', icon: '⭐' },
+  { min: 100, label: 'Enlightened', icon: '👑' },
+];
+
+const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, onSelect, onOpenPricing, onOpenBundle, onToggleTheme, onOpenAuth, onOpenDashboard }) => {
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const totalCompleted = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
@@ -44,6 +58,27 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
   }, 0);
   const overallPercent = totalChapters > 0 ? Math.round((totalCompleted / totalChapters) * 100) : 0;
   const hasPurchases = purchasedBookIds.length > 0;
+  const [readerCount, setReaderCount] = useState(142);
+  const [testimonialIdx, setTestimonialIdx] = useState(0);
+
+  // Live reader count fluctuation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setReaderCount(prev => Math.max(100, prev + Math.floor(Math.random() * 9) - 4));
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-rotate testimonials
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTestimonialIdx(prev => (prev + 1) % testimonials.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentBadge = streakBadges.filter(b => streak.currentStreak >= b.min).pop();
+  const nextBadge = streakBadges.find(b => streak.currentStreak < b.min);
 
   return (
     <div className="min-h-screen bg-themed">
@@ -54,14 +89,12 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
 
         <div className="relative max-w-6xl mx-auto px-6 pt-10 pb-12">
-          {/* Top bar */}
+          {/* Top bar with Logo */}
           <div className="flex items-center justify-between mb-14 animate-fadeIn">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-stone-800 flex items-center justify-center">
-                <span className="text-white text-sm font-display font-bold">&#x2726;</span>
-              </div>
+              <Logo size="sm" showText={false} />
               <div>
-                <p className="text-themed text-sm font-display font-semibold">DELTA EBooks</p>
+                <p className="text-themed text-sm font-display font-semibold">Delta Wisdom</p>
                 <p className="text-themed-muted text-[10px] tracking-wider uppercase">by {AUTHOR}</p>
               </div>
             </div>
@@ -72,6 +105,14 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={themeIcons[theme]} />
                 </svg>
               </button>
+
+              {/* Reading streak badge */}
+              {streak.currentStreak > 0 && (
+                <div className="hidden sm:flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded-full">
+                  <span className="text-sm">{currentBadge?.icon || '🔥'}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{streak.currentStreak} day streak</span>
+                </div>
+              )}
 
               {totalCompleted > 0 && (
                 <div className="hidden sm:flex items-center gap-3 bg-themed-card px-4 py-2 rounded-full border border-themed">
@@ -103,14 +144,65 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
               <h2 className="text-xs tracking-[0.5em] uppercase font-bold mb-5" style={{ color: 'var(--accent)' }}>The Universal Library</h2>
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display text-themed mb-6 font-medium">Choose Your Journey</h1>
               <p className="text-themed-muted font-serif text-xl italic max-w-xl mx-auto leading-relaxed">"We do not read books; we traverse landscapes of thought."</p>
+
               <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                 <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-xs font-bold">First {FREE_CHAPTERS} chapters free</div>
                 <div className="inline-flex items-center gap-2 bg-themed-card border border-themed text-themed-sub px-4 py-2 rounded-full text-xs font-bold">One-time payment &middot; Lifetime access</div>
+                {/* Live readers */}
+                <div className="inline-flex items-center gap-2 text-themed-muted px-3 py-2 text-xs font-medium">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-emerald-600 font-bold">{readerCount}</span> reading now
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Bundle Offer — show if user hasn't bought all books */}
+      {purchasedBookIds.length < books.length && (
+        <div className="max-w-6xl mx-auto px-6 pb-10">
+          <div className="relative bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 border-2 border-amber-200 rounded-3xl p-6 sm:p-8 overflow-hidden animate-fadeIn">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/30 rounded-full blur-[60px]" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-200/30 rounded-full blur-[40px]" />
+
+            <div className="relative flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-1 text-center md:text-left">
+                <div className="inline-flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd"/></svg>
+                  Best Value — Save ${BUNDLE_SAVINGS.toFixed(2)}
+                </div>
+                <h3 className="font-display text-2xl sm:text-3xl font-medium text-stone-800 mb-2">Get All {books.length} Books</h3>
+                <p className="text-stone-600 font-serif italic mb-4">The complete philosophical library — {totalChapters} chapters of transformative wisdom</p>
+                <div className="flex items-center gap-3 justify-center md:justify-start">
+                  <span className="text-stone-400 line-through text-lg">${(PRICE_PER_BOOK * books.length).toFixed(2)}</span>
+                  <span className="text-3xl font-display font-bold text-stone-800">${BUNDLE_PRICE}</span>
+                  <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Save {Math.round((BUNDLE_SAVINGS / (PRICE_PER_BOOK * books.length)) * 100)}%</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-3">
+                {/* Mini book covers */}
+                <div className="flex -space-x-3">
+                  {books.map(b => (
+                    <img key={b.id} src={b.coverImage} alt={b.title} className="w-12 h-16 object-cover rounded-lg border-2 border-white shadow-md" />
+                  ))}
+                </div>
+                <button
+                  onClick={onOpenBundle}
+                  className="bg-stone-800 text-white px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider hover:bg-stone-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                >
+                  Buy Bundle — ${BUNDLE_PRICE}
+                </button>
+                <p className="text-stone-500 text-[10px] font-bold uppercase tracking-wider">One-time payment &middot; All books forever</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ad banner for free users */}
       {!hasPurchases && (
@@ -118,6 +210,42 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
           <div className="ad-banner rounded-2xl p-5 text-center animate-fadeIn">
             <p className="text-themed-muted text-[10px] font-bold uppercase tracking-wider mb-1">Sponsored</p>
             <p className="text-themed-sub text-sm">Discover our premium collection — wisdom that transforms your life, one chapter at a time.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Reading Streak Section */}
+      {streak.currentStreak > 0 && (
+        <div className="max-w-6xl mx-auto px-6 pb-8">
+          <div className="bg-themed-card border border-themed rounded-2xl p-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="text-4xl">{currentBadge?.icon || '🔥'}</div>
+                <div>
+                  <p className="font-display text-themed text-lg font-medium">{streak.currentStreak}-Day Reading Streak</p>
+                  <p className="text-themed-muted text-xs">{streak.totalDaysRead} total days read &middot; Longest: {streak.longestStreak} days</p>
+                </div>
+              </div>
+              {nextBadge && (
+                <div className="sm:ml-auto flex items-center gap-3 bg-themed-muted rounded-full px-4 py-2">
+                  <div className="text-xl opacity-40">{nextBadge.icon}</div>
+                  <div>
+                    <p className="text-themed-sub text-[10px] font-bold uppercase tracking-wider">Next: {nextBadge.label}</p>
+                    <div className="w-24 h-1.5 bg-themed rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(streak.currentStreak / nextBadge.min) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {streak.badges.length > 0 && (
+                <div className="flex gap-1">
+                  {streak.badges.map(b => {
+                    const badge = streakBadges.find(sb => sb.label === b);
+                    return badge ? <span key={b} className="text-xl" title={badge.label}>{badge.icon}</span> : null;
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -220,30 +348,47 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
       )}
 
-      {/* Testimonials */}
+      {/* Testimonials — rotating carousel */}
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <h2 className="text-xs tracking-[0.4em] uppercase font-bold mb-3" style={{ color: 'var(--accent)' }}>What Readers Say</h2>
           <p className="font-display text-3xl text-themed font-medium">Trusted by Thousands</p>
-          <p className="text-themed-muted text-sm mt-2">2,847 readers &middot; 4.9 average rating</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-themed-card border border-themed rounded-2xl p-6 sm:p-8 animate-fadeIn" style={{ animationDelay: `${i * 0.1}s` }}>
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, s) => (
-                  <svg key={s} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                  </svg>
-                ))}
-              </div>
-              <p className="text-themed-sub font-serif italic leading-relaxed mb-5">"{t.text}"</p>
-              <div>
-                <p className="text-themed font-bold text-sm">{t.name}</p>
-                <p className="text-themed-muted text-xs">{t.role}</p>
-              </div>
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <div className="flex items-center gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <svg key={i} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+              ))}
             </div>
-          ))}
+            <span className="text-themed-sub text-sm font-bold">4.9</span>
+            <span className="text-themed-muted text-sm">&middot; 2,847 readers</span>
+          </div>
+        </div>
+
+        {/* Featured testimonial (rotating) */}
+        <div className="bg-themed-card border border-themed rounded-3xl p-8 sm:p-10 mb-8 text-center transition-all duration-500">
+          <div className="flex items-center gap-1 justify-center mb-5">
+            {[...Array(5)].map((_, s) => (
+              <svg key={s} className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+            ))}
+          </div>
+          <p className="text-themed-sub font-serif italic text-xl sm:text-2xl leading-relaxed mb-6 max-w-2xl mx-auto">
+            "{testimonials[testimonialIdx].text}"
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-stone-800 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{testimonials[testimonialIdx].avatar}</span>
+            </div>
+            <div className="text-left">
+              <p className="text-themed font-bold text-sm">{testimonials[testimonialIdx].name}</p>
+              <p className="text-themed-muted text-xs">{testimonials[testimonialIdx].role}</p>
+            </div>
+          </div>
+          {/* Dots */}
+          <div className="flex items-center justify-center gap-2 mt-6">
+            {testimonials.map((_, i) => (
+              <button key={i} onClick={() => setTestimonialIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === testimonialIdx ? 'bg-stone-800 w-6' : 'bg-themed-muted'}`} />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -284,8 +429,8 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
       {/* About Author */}
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="bg-themed-muted rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8">
-          <div className="w-28 h-28 rounded-full bg-stone-800 flex items-center justify-center shrink-0">
-            <span className="text-white text-4xl font-display font-bold">M</span>
+          <div className="w-28 h-28 rounded-full overflow-hidden shrink-0">
+            <Logo size="lg" showText={false} />
           </div>
           <div className="flex-1 text-center md:text-left">
             <h3 className="font-display text-2xl text-themed font-medium mb-2">About {AUTHOR}</h3>
@@ -308,15 +453,12 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
 
       {/* Footer */}
       <footer className="max-w-6xl mx-auto px-6 py-12 text-center">
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-8 h-px" style={{ backgroundColor: 'var(--border)' }} />
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
-          <div className="w-8 h-px" style={{ backgroundColor: 'var(--border)' }} />
+        <div className="mb-6">
+          <Logo size="sm" showText={true} />
         </div>
-        <p className="text-themed-muted text-xs tracking-[0.2em] uppercase font-medium mb-2">The Universal Wisdom Library</p>
         <p className="text-themed-muted text-xs font-serif italic mb-4">{totalChapters} chapters by {AUTHOR}</p>
         <div className="flex items-center justify-center gap-4 text-themed-muted text-[10px]">
-          <span>Secure PayPal</span><span>&middot;</span><span>7-day refund</span><span>&middot;</span><span>support@delta-ebooks.com</span>
+          <span>Secure PayPal</span><span>&middot;</span><span>7-day refund</span><span>&middot;</span><span>support@deltawisdom.com</span>
         </div>
       </footer>
     </div>

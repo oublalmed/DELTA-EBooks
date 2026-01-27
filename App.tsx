@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, FREE_CHAPTERS, PRICE_PER_BOOK } from './types';
+import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
 
@@ -45,6 +45,13 @@ const App: React.FC = () => {
   // ── Pricing modal ──
   const [showPricing, setShowPricing] = useState(false);
   const [pricingTargetBook, setPricingTargetBook] = useState<Book | null>(null);
+  const [isBundleMode, setIsBundleMode] = useState(false);
+
+  // ── Reading streak ──
+  const [streak, setStreak] = useState<ReadingStreak>(() => {
+    const saved = localStorage.getItem('delta_streak');
+    return saved ? JSON.parse(saved) : { currentStreak: 0, longestStreak: 0, lastReadDate: '', totalDaysRead: 0, badges: [] };
+  });
 
   // ── Theme application ──
   useEffect(() => {
@@ -61,6 +68,36 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('delta_progress', JSON.stringify(progress));
   }, [progress]);
+
+  // ── Streak persistence ──
+  useEffect(() => {
+    localStorage.setItem('delta_streak', JSON.stringify(streak));
+  }, [streak]);
+
+  const updateStreak = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    setStreak(prev => {
+      if (prev.lastReadDate === today) return prev; // Already counted today
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const isConsecutive = prev.lastReadDate === yesterday;
+      const newCurrent = isConsecutive ? prev.currentStreak + 1 : 1;
+      const newLongest = Math.max(prev.longestStreak, newCurrent);
+      const newTotal = prev.totalDaysRead + 1;
+
+      // Check for new badges
+      const badgeThresholds = [
+        { min: 3, label: 'Curious Mind' }, { min: 7, label: 'Week Warrior' },
+        { min: 14, label: 'Deep Thinker' }, { min: 30, label: 'Philosopher' },
+        { min: 60, label: 'Wisdom Seeker' }, { min: 100, label: 'Enlightened' },
+      ];
+      const newBadges = [...prev.badges];
+      badgeThresholds.forEach(b => {
+        if (newCurrent >= b.min && !newBadges.includes(b.label)) newBadges.push(b.label);
+      });
+
+      return { currentStreak: newCurrent, longestStreak: newLongest, lastReadDate: today, totalDaysRead: newTotal, badges: newBadges };
+    });
+  }, []);
 
   // ── Load user session on mount ──
   useEffect(() => {
@@ -176,16 +213,28 @@ const App: React.FC = () => {
     setCurrentChapter(processedChapter);
     setView('reader');
     window.scrollTo(0, 0);
-  }, [currentBook, isChapterAccessible, isChapterPartial, isChapterTeaser]);
+    updateStreak(); // Track reading streak
+  }, [currentBook, isChapterAccessible, isChapterPartial, isChapterTeaser, updateStreak]);
 
   const handleOpenPricing = useCallback((book?: Book) => {
     if (!user) {
       setView('auth');
       return;
     }
+    setIsBundleMode(false);
     setPricingTargetBook(book || currentBook);
     setShowPricing(true);
   }, [user, currentBook]);
+
+  const handleOpenBundle = useCallback(() => {
+    if (!user) {
+      setView('auth');
+      return;
+    }
+    setIsBundleMode(true);
+    setPricingTargetBook(null);
+    setShowPricing(true);
+  }, [user]);
 
   const handlePurchaseComplete = useCallback((bookId: string) => {
     setPurchasedBookIds(prev => [...new Set([...prev, bookId])]);
@@ -271,8 +320,10 @@ const App: React.FC = () => {
             purchasedBookIds={purchasedBookIds}
             user={user}
             theme={theme}
+            streak={streak}
             onSelect={selectBook}
             onOpenPricing={handleOpenPricing}
+            onOpenBundle={handleOpenBundle}
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
@@ -327,7 +378,7 @@ const App: React.FC = () => {
         return <ChatView book={currentBook!} onBack={() => setView('library')} />;
 
       default:
-        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} onSelect={selectBook} onOpenPricing={handleOpenPricing} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} />;
+        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} />;
     }
   };
 
@@ -348,12 +399,15 @@ const App: React.FC = () => {
         {renderView()}
       </div>
 
-      {showPricing && pricingTargetBook && (
+      {showPricing && (pricingTargetBook || isBundleMode) && (
         <PricingModal
           isOpen={showPricing}
-          onClose={() => setShowPricing(false)}
+          onClose={() => { setShowPricing(false); setIsBundleMode(false); }}
           targetBook={pricingTargetBook}
           user={user}
+          isBundleMode={isBundleMode}
+          allBooks={BOOKS}
+          purchasedBookIds={purchasedBookIds}
           onPurchaseComplete={handlePurchaseComplete}
           onOpenAuth={() => { setShowPricing(false); setView('auth'); }}
         />
