@@ -32,7 +32,29 @@ export interface Book {
 
 // ── View State ──
 
-export type ViewState = 'landing' | 'shelf' | 'library' | 'reader' | 'chat' | 'auth' | 'dashboard';
+export type ViewState = 'landing' | 'shelf' | 'library' | 'reader' | 'chat' | 'auth' | 'dashboard' | 'expression' | 'journey';
+
+// ── Expression Space ──
+
+export interface ExpressionEntry {
+  id: string;
+  text: string;
+  category: 'feeling' | 'experience' | 'adventure' | 'success' | 'failure' | 'emotion' | 'insight';
+  createdAt: string;
+  mood?: string;
+}
+
+// ── Journey Calendar ──
+
+export interface JourneyEntry {
+  id: string;
+  date: string; // ISO date string YYYY-MM-DD
+  emotion: string;
+  milestone: string;
+  challenge: string;
+  reflection: string;
+  rating: number; // 1-5
+}
 export type ThemeMode = 'light' | 'dark' | 'sepia';
 
 // ── User & Auth ──
