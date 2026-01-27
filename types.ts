@@ -96,7 +96,19 @@ export interface ReaderSettings {
   theme: ThemeMode;
 }
 
+// ── Reading Streak ──
+
+export interface ReadingStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastReadDate: string;
+  totalDaysRead: number;
+  badges: string[];
+}
+
 // ── Constants ──
 
 export const FREE_CHAPTERS = 4;
 export const PRICE_PER_BOOK = 9.99;
+export const BUNDLE_PRICE = 29.99;
+export const BUNDLE_SAVINGS = +(PRICE_PER_BOOK * 4 - BUNDLE_PRICE).toFixed(2);

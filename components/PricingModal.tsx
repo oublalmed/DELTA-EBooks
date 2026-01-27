@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Book, User, PRICE_PER_BOOK } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Book, User, PRICE_PER_BOOK, BUNDLE_PRICE, BUNDLE_SAVINGS } from '../types';
 import * as api from '../services/api';
 
 interface PricingModalProps {
@@ -8,16 +8,51 @@ interface PricingModalProps {
   onClose: () => void;
   targetBook: Book | null;
   user: User | null;
+  isBundleMode?: boolean;
+  allBooks?: Book[];
+  purchasedBookIds?: string[];
   onPurchaseComplete: (bookId: string) => void;
   onOpenAuth: () => void;
 }
 
-const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook, user, onPurchaseComplete, onOpenAuth }) => {
+const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook, user, isBundleMode = false, allBooks = [], purchasedBookIds = [], onPurchaseComplete, onOpenAuth }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-  if (!isOpen || !targetBook) return null;
+  // Countdown timer — creates urgency
+  useEffect(() => {
+    // Set countdown end to midnight + 48 hours from first view
+    const stored = localStorage.getItem('delta_offer_end');
+    let endTime: number;
+    if (stored) {
+      endTime = parseInt(stored);
+    } else {
+      endTime = Date.now() + 48 * 60 * 60 * 1000; // 48 hours from now
+      localStorage.setItem('delta_offer_end', String(endTime));
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, endTime - Date.now());
+      const hours = Math.floor(remaining / (1000 * 60 * 60));
+      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+      setCountdown({ hours, minutes, seconds });
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!isOpen || (!targetBook && !isBundleMode)) return null;
+
+  const price = isBundleMode ? BUNDLE_PRICE : PRICE_PER_BOOK;
+  const title = isBundleMode ? 'Complete Wisdom Library' : targetBook!.title;
+  const totalChapters = isBundleMode
+    ? allBooks.reduce((sum, b) => sum + b.chapters.length, 0)
+    : targetBook!.chapters.length;
 
   const handlePurchase = async () => {
     if (!user) {
@@ -29,14 +64,30 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
     setError(null);
 
     try {
+      if (isBundleMode) {
+        // Purchase all unpurchased books
+        const unpurchased = allBooks.filter(b => !purchasedBookIds.includes(b.id));
+        for (const book of unpurchased) {
+          const { orderId } = await api.createPaymentOrder(book.id);
+          await api.capturePaymentOrder(orderId, book.id);
+        }
       const { orderId } = await api.createPaymentOrder(targetBook.id);
       const result = await api.capturePaymentOrder(orderId, targetBook.id);
 
       if (result.success) {
         setSuccess(true);
         setTimeout(() => {
-          onPurchaseComplete(targetBook.id);
+          allBooks.forEach(b => onPurchaseComplete(b.id));
         }, 2000);
+      } else {
+        const { orderId } = await api.createPaymentOrder(targetBook!.id);
+        const result = await api.capturePaymentOrder(orderId, targetBook!.id);
+        if (result.success) {
+          setSuccess(true);
+          setTimeout(() => {
+            onPurchaseComplete(targetBook!.id);
+          }, 2000);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Payment failed. Please try again.');
@@ -56,7 +107,12 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
             </svg>
           </div>
           <h2 className="font-display text-2xl text-themed font-medium mb-2">Purchase Complete!</h2>
-          <p className="text-themed-sub text-sm mb-2">You now have full access to "{targetBook.title}"</p>
+          <p className="text-themed-sub text-sm mb-2">
+            {isBundleMode
+              ? `You now have full access to all ${allBooks.length} books!`
+              : `You now have full access to "${targetBook!.title}"`
+            }
+          </p>
           <p className="text-themed-muted text-xs">All chapters unlocked + PDF download available</p>
           <div className="mt-6 pt-6 border-t border-themed">
             <p className="text-themed-muted text-xs font-serif italic">"Your journey of wisdom begins now."</p>
@@ -77,6 +133,51 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
           </svg>
         </button>
 
+        {/* Countdown timer */}
+        {(countdown.hours > 0 || countdown.minutes > 0) && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-6 text-center">
+            <p className="text-red-700 text-[10px] font-bold uppercase tracking-wider mb-1">Launch Offer Ends In</p>
+            <div className="flex items-center justify-center gap-2">
+              <div className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-mono font-bold text-sm">{String(countdown.hours).padStart(2, '0')}</div>
+              <span className="text-red-400 font-bold">:</span>
+              <div className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-mono font-bold text-sm">{String(countdown.minutes).padStart(2, '0')}</div>
+              <span className="text-red-400 font-bold">:</span>
+              <div className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-mono font-bold text-sm">{String(countdown.seconds).padStart(2, '0')}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Book info */}
+        <div className="flex items-start gap-4 mb-8">
+          {isBundleMode ? (
+            <div className="flex -space-x-2 shrink-0">
+              {allBooks.slice(0, 4).map(b => (
+                <img key={b.id} src={b.coverImage} alt={b.title} className="w-14 h-20 object-cover rounded-xl shadow-lg border-2 border-white" />
+              ))}
+            </div>
+          ) : (
+            <img src={targetBook!.coverImage} alt={targetBook!.title} className="w-20 h-28 object-cover rounded-xl shadow-lg" />
+          )}
+          <div className="flex-1">
+            {isBundleMode && (
+              <div className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider mb-2">
+                Save ${BUNDLE_SAVINGS.toFixed(2)}
+              </div>
+            )}
+            <h2 className="font-display text-xl text-themed font-medium mb-1">{title}</h2>
+            <p className="text-themed-muted text-xs mb-3">
+              {isBundleMode
+                ? `${allBooks.length} books · ${totalChapters} chapters`
+                : `${targetBook!.author} · ${totalChapters} chapters`
+              }
+            </p>
+            <div className="flex items-center gap-2">
+              {isBundleMode && (
+                <span className="text-themed-muted line-through text-lg">${(PRICE_PER_BOOK * allBooks.length).toFixed(2)}</span>
+              )}
+              <span className="text-3xl font-display font-bold text-themed">${price}</span>
+            </div>
+            <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold mt-1">One-time payment</p>
         {/* Book info with premium styling */}
         <div className="flex items-start gap-5 mb-8">
           <div className="relative">
@@ -117,7 +218,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
           </h3>
           <div className="space-y-2.5">
             {[
-              'All ' + targetBook.chapters.length + ' chapters — full content',
+              isBundleMode ? `All ${totalChapters} chapters across ${allBooks.length} books` : `All ${totalChapters} chapters — full content`,
               'Secure PDF download (watermarked)',
               'AI Companion for guided insights',
               'Sacred reflection journal',
@@ -133,6 +234,18 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Social proof mini */}
+        <div className="flex items-center justify-center gap-3 mb-6 text-themed-muted text-xs">
+          <div className="flex -space-x-1.5">
+            {['S','J','A','D','L'].map((letter, i) => (
+              <div key={i} className="w-6 h-6 rounded-full bg-stone-700 flex items-center justify-center border-2 border-white">
+                <span className="text-white text-[8px] font-bold">{letter}</span>
+              </div>
+            ))}
+          </div>
+          <span>2,847 readers &middot; 4.9 rating</span>
         </div>
 
         {/* Error */}
@@ -159,7 +272,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797H9.603c-.564 0-1.04.407-1.13.963l-.84 5.325-.282 1.792a.642.642 0 0 1-.275.926z"/>
                 </svg>
-                Pay ${PRICE_PER_BOOK} with PayPal
+                Pay ${price} with PayPal
               </>
             )}
           </button>

@@ -1,8 +1,9 @@
 
-import React from 'react';
-import { Book, UserProgress, User, ThemeMode, FREE_CHAPTERS, PRICE_PER_BOOK } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Book, UserProgress, User, ThemeMode, ReadingStreak, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE, BUNDLE_SAVINGS } from '../types';
 import { AUTHOR } from '../constants';
 import EmailCapture from './EmailCapture';
+import Logo from './Logo';
 
 interface ShelfViewProps {
   books: Book[];
@@ -10,8 +11,10 @@ interface ShelfViewProps {
   purchasedBookIds: string[];
   user: User | null;
   theme: ThemeMode;
+  streak: ReadingStreak;
   onSelect: (book: Book) => void;
   onOpenPricing: (book?: Book) => void;
+  onOpenBundle: () => void;
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
@@ -43,7 +46,16 @@ const themeIcons: Record<ThemeMode, string> = {
   sepia: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
 };
 
-const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, onSelect, onOpenPricing, onToggleTheme, onOpenAuth, onOpenDashboard }) => {
+const streakBadges = [
+  { min: 3, label: 'Curious Mind', icon: '🌱' },
+  { min: 7, label: 'Week Warrior', icon: '🔥' },
+  { min: 14, label: 'Deep Thinker', icon: '🧠' },
+  { min: 30, label: 'Philosopher', icon: '🏛️' },
+  { min: 60, label: 'Wisdom Seeker', icon: '⭐' },
+  { min: 100, label: 'Enlightened', icon: '👑' },
+];
+
+const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, onSelect, onOpenPricing, onOpenBundle, onToggleTheme, onOpenAuth, onOpenDashboard }) => {
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const totalCompleted = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
@@ -51,6 +63,27 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
   }, 0);
   const overallPercent = totalChapters > 0 ? Math.round((totalCompleted / totalChapters) * 100) : 0;
   const hasPurchases = purchasedBookIds.length > 0;
+  const [readerCount, setReaderCount] = useState(142);
+  const [testimonialIdx, setTestimonialIdx] = useState(0);
+
+  // Live reader count fluctuation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setReaderCount(prev => Math.max(100, prev + Math.floor(Math.random() * 9) - 4));
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-rotate testimonials
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTestimonialIdx(prev => (prev + 1) % testimonials.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentBadge = streakBadges.filter(b => streak.currentStreak >= b.min).pop();
+  const nextBadge = streakBadges.find(b => streak.currentStreak < b.min);
 
   return (
     <div className="min-h-screen bg-themed">
@@ -70,14 +103,15 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
 
         <div className="relative max-w-6xl mx-auto px-6 pt-10 pb-12">
-          {/* Top bar */}
+          {/* Top bar with Logo */}
           <div className="flex items-center justify-between mb-14 animate-fadeIn">
             <div className="flex items-center gap-3">
+              <Logo size="sm" showText={false} />
               <div className="w-10 h-10 rounded-full bg-stone-800 flex items-center justify-center shadow-lg">
                 <span className="text-white text-sm font-display font-bold">&#x2726;</span>
               </div>
               <div>
-                <p className="text-themed text-sm font-display font-semibold">DELTA EBooks</p>
+                <p className="text-themed text-sm font-display font-semibold">Delta Wisdom</p>
                 <p className="text-themed-muted text-[10px] tracking-wider uppercase">by {AUTHOR}</p>
               </div>
             </div>
@@ -88,6 +122,14 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={themeIcons[theme]} />
                 </svg>
               </button>
+
+              {/* Reading streak badge */}
+              {streak.currentStreak > 0 && (
+                <div className="hidden sm:flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded-full">
+                  <span className="text-sm">{currentBadge?.icon || '🔥'}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{streak.currentStreak} day streak</span>
+                </div>
+              )}
 
               {totalCompleted > 0 && (
                 <div className="hidden sm:flex items-center gap-3 bg-themed-card px-4 py-2 rounded-full border border-themed">
@@ -188,6 +230,42 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                   <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">7-day refund guarantee</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reading Streak Section */}
+      {streak.currentStreak > 0 && (
+        <div className="max-w-6xl mx-auto px-6 pb-8">
+          <div className="bg-themed-card border border-themed rounded-2xl p-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="text-4xl">{currentBadge?.icon || '🔥'}</div>
+                <div>
+                  <p className="font-display text-themed text-lg font-medium">{streak.currentStreak}-Day Reading Streak</p>
+                  <p className="text-themed-muted text-xs">{streak.totalDaysRead} total days read &middot; Longest: {streak.longestStreak} days</p>
+                </div>
+              </div>
+              {nextBadge && (
+                <div className="sm:ml-auto flex items-center gap-3 bg-themed-muted rounded-full px-4 py-2">
+                  <div className="text-xl opacity-40">{nextBadge.icon}</div>
+                  <div>
+                    <p className="text-themed-sub text-[10px] font-bold uppercase tracking-wider">Next: {nextBadge.label}</p>
+                    <div className="w-24 h-1.5 bg-themed rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(streak.currentStreak / nextBadge.min) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {streak.badges.length > 0 && (
+                <div className="flex gap-1">
+                  {streak.badges.map(b => {
+                    const badge = streakBadges.find(sb => sb.label === b);
+                    return badge ? <span key={b} className="text-xl" title={badge.label}>{badge.icon}</span> : null;
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -381,7 +459,7 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
       )}
 
-      {/* Testimonials */}
+      {/* Testimonials — rotating carousel */}
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <div className="ornament-divider mb-4">
@@ -409,7 +487,17 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                 </div>
               </div>
             </div>
-          ))}
+            <div className="text-left">
+              <p className="text-themed font-bold text-sm">{testimonials[testimonialIdx].name}</p>
+              <p className="text-themed-muted text-xs">{testimonials[testimonialIdx].role}</p>
+            </div>
+          </div>
+          {/* Dots */}
+          <div className="flex items-center justify-center gap-2 mt-6">
+            {testimonials.map((_, i) => (
+              <button key={i} onClick={() => setTestimonialIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === testimonialIdx ? 'bg-stone-800 w-6' : 'bg-themed-muted'}`} />
+            ))}
+          </div>
         </div>
       </div>
 
