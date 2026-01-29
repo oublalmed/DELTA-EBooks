@@ -96,4 +96,22 @@ router.get('/me', requireAuth, (req, res) => {
   }
 });
 
+// PATCH /api/auth/me
+router.patch('/me', requireAuth, (req, res) => {
+  try {
+    const { name } = req.body;
+    if (name === undefined) {
+      return res.status(400).json({ error: 'No update fields provided' });
+    }
+
+    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, req.user.id);
+
+    const updatedUser = db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(req.user.id);
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 export default router;

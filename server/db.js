@@ -55,6 +55,7 @@ db.exec(`
     user_id         INTEGER NOT NULL,
     book_id         TEXT NOT NULL,
     paypal_order_id TEXT,
+    stripe_payment_intent_id TEXT,
     amount          REAL NOT NULL,
     currency        TEXT NOT NULL DEFAULT 'USD',
     status          TEXT NOT NULL DEFAULT 'completed',
@@ -116,6 +117,30 @@ db.exec(`
     email       TEXT UNIQUE NOT NULL,
     source      TEXT DEFAULT 'website',
     subscribed_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS expression_entries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    text        TEXT NOT NULL,
+    category    TEXT NOT NULL,
+    mood        TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS journey_entries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    date        TEXT NOT NULL,
+    emotion     TEXT NOT NULL,
+    milestone   TEXT,
+    challenge   TEXT,
+    reflection  TEXT,
+    rating      INTEGER NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   -- Indexes for performance

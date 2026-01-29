@@ -32,10 +32,10 @@ const Logo: React.FC<LogoProps> = ({ size = 'md', showText = true, className = '
         }}
       />
       {/* Fallback text logo */}
-      <div className="hidden flex-col items-center" style={{ display: 'none' }}>
+      {/*<div className="hidden flex-col items-center" style={{ display: 'none' }}>
         <span className={`font-display font-medium text-themed ${s.text}`}>Delta</span>
         <span className="text-amber-600 font-serif italic" style={{ fontSize: size === 'hero' ? '2rem' : size === 'xl' ? '1.5rem' : '1rem' }}>Wisdom</span>
-      </div>
+      </div>*/}
       {showText && size !== 'hero' && (
         <p className={`text-themed-muted ${s.sub} tracking-[0.3em] uppercase font-bold mt-1`}>The Universal Wisdom Library</p>
       )}

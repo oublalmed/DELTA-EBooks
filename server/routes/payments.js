@@ -2,8 +2,47 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createOrder, captureOrder, getOrderDetails } from '../services/paypal.js';
+import { createPaymentIntent } from '../services/stripe.js';
 
 const router = Router();
+
+// ── POST /api/payments/create-stripe-payment-intent ──
+router.post('/create-stripe-payment-intent', requireAuth, async (req, res) => {
+  try {
+    const { bookId } = req.body;
+    if (!bookId) {
+      return res.status(400).json({ error: 'Book ID is required' });
+    }
+
+    // Check if already purchased
+    const existingPurchase = db.prepare(
+      'SELECT id FROM purchases WHERE user_id = ? AND book_id = ? AND status = ?'
+    ).get(req.user.id, bookId, 'completed');
+
+    if (existingPurchase) {
+      return res.status(400).json({ error: 'You already own this book' });
+    }
+
+    // Get book details
+    const book = db.prepare('SELECT * FROM books WHERE id = ?').get(bookId);
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    // Create a Payment Intent with the order amount and currency
+    const paymentIntent = await createPaymentIntent(book.price, book.currency, {
+      userId: req.user.id.toString(),
+      bookId: book.id,
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (err) {
+    console.error('Stripe Payment Intent creation error:', err);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
 
 // ── POST /api/payments/create-order ──
 router.post('/create-order', requireAuth, (req, res) => {

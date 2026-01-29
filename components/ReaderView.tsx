@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Chapter, Book, ThemeMode, PRICE_PER_BOOK } from '../types';
+import { Chapter, Book, ThemeMode, Language, PRICE_PER_BOOK } from '../types';
 import { getChapterInsight } from '../services/geminiService';
+import { translations } from '../i18n';
 
 interface ReaderViewProps {
   book: Book;
@@ -11,11 +12,13 @@ interface ReaderViewProps {
   isBookPurchased: boolean;
   theme: ThemeMode;
   fontSize: number;
+  language: Language;
   onToggleComplete: () => void;
   onSaveReflection: (text: string) => void;
   onBack: () => void;
   onToggleTheme: () => void;
   onSetFontSize: (size: number) => void;
+  onUpdateLanguage: (language: Language) => void;
   onUnlock: () => void;
   onNext: (id: number) => void;
 }
@@ -35,11 +38,13 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   isBookPurchased,
   theme,
   fontSize,
+  language,
   onToggleComplete,
   onSaveReflection,
   onBack,
   onToggleTheme,
   onSetFontSize,
+  onUpdateLanguage,
   onUnlock,
   onNext
 }) => {
@@ -50,6 +55,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
+  const t = translations[language].reader_view;
   const paragraphs = chapter.content.split('\n\n');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const readingTime = Math.ceil(chapter.content.split(' ').length / 200);
@@ -192,9 +198,22 @@ const ReaderView: React.FC<ReaderViewProps> = ({
                 </button>
               </div>
 
+              {/* Language switcher */}
+              <div className="flex items-center gap-3">
+                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Language</span>
+                <select
+                  value={language}
+                  onChange={(e) => onUpdateLanguage(e.target.value as Language)}
+                  className="bg-themed-muted rounded-lg text-themed-sub text-xs font-medium hover:bg-themed border border-themed transition-all px-3 py-1.5"
+                >
+                  <option value="en">English</option>
+                  <option value="fr">French</option>
+                </select>
+              </div>
+
               {/* Font size */}
               <div className="flex items-center gap-3">
-                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Font</span>
+                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">{t.font}</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onSetFontSize(Math.max(14, fontSize - 2))}

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ExpressionEntry } from '../types';
+import * as api from '../services/api';
 
 interface ExpressionSpaceViewProps {
   onBack: () => void;
@@ -49,10 +50,7 @@ const MOODS = [
 const STORAGE_KEY = 'delta_expressions';
 
 const ExpressionSpaceView: React.FC<ExpressionSpaceViewProps> = ({ onBack, onOpenJourney }) => {
-  const [entries, setEntries] = useState<ExpressionEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [entries, setEntries] = useState<ExpressionEntry[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ExpressionEntry['category']>('feeling');
   const [text, setText] = useState('');
   const [selectedMood, setSelectedMood] = useState('');
@@ -62,18 +60,16 @@ const ExpressionSpaceView: React.FC<ExpressionSpaceViewProps> = ({ onBack, onOpe
   const [savedMessage, setSavedMessage] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
+    api.getExpressionEntries().then(setEntries);
+  }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!text.trim()) return;
-    const newEntry: ExpressionEntry = {
-      id: Date.now().toString(),
+    const newEntry = await api.addExpressionEntry({
       text: text.trim(),
       category: selectedCategory,
-      createdAt: new Date().toISOString(),
       mood: selectedMood || undefined,
-    };
+    });
     setEntries(prev => [newEntry, ...prev]);
     setText('');
     setSelectedMood('');
@@ -81,7 +77,8 @@ const ExpressionSpaceView: React.FC<ExpressionSpaceViewProps> = ({ onBack, onOpe
     setTimeout(() => setSavedMessage(false), 3000);
   }, [text, selectedCategory, selectedMood]);
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
+    await api.deleteExpressionEntry(id);
     setEntries(prev => prev.filter(e => e.id !== id));
   }, []);
 

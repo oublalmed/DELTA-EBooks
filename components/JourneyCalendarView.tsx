@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { JourneyEntry } from '../types';
+import * as api from '../services/api';
 
 interface JourneyCalendarViewProps {
   onBack: () => void;
@@ -36,10 +37,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const JourneyCalendarView: React.FC<JourneyCalendarViewProps> = ({ onBack, onOpenExpression }) => {
-  const [entries, setEntries] = useState<JourneyEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [entries, setEntries] = useState<JourneyEntry[]>([]);
 
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -56,8 +54,8 @@ const JourneyCalendarView: React.FC<JourneyCalendarViewProps> = ({ onBack, onOpe
   const [savedMessage, setSavedMessage] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
+    api.getJourneyEntries().then(setEntries);
+  }, []);
 
   // Load entry data when selected date changes
   useEffect(() => {
@@ -79,11 +77,10 @@ const JourneyCalendarView: React.FC<JourneyCalendarViewProps> = ({ onBack, onOpe
     }
   }, [selectedDate, entries]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!formReflection.trim() && !formMilestone.trim() && !formEmotion) return;
 
-    const newEntry: JourneyEntry = {
-      id: selectedDate,
+    const newEntryData = {
       date: selectedDate,
       emotion: formEmotion,
       milestone: formMilestone.trim(),
@@ -92,16 +89,19 @@ const JourneyCalendarView: React.FC<JourneyCalendarViewProps> = ({ onBack, onOpe
       rating: formRating,
     };
 
+    const savedEntry = await api.addOrUpdateJourneyEntry(newEntryData);
+
     setEntries(prev => {
       const filtered = prev.filter(e => e.date !== selectedDate);
-      return [...filtered, newEntry].sort((a, b) => a.date.localeCompare(b.date));
+      return [...filtered, savedEntry].sort((a, b) => a.date.localeCompare(b.date));
     });
     setEditMode(false);
     setSavedMessage(true);
     setTimeout(() => setSavedMessage(false), 3000);
   }, [selectedDate, formEmotion, formMilestone, formChallenge, formReflection, formRating]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
+    await api.deleteJourneyEntry(selectedDate);
     setEntries(prev => prev.filter(e => e.date !== selectedDate));
     setEditMode(true);
   }, [selectedDate]);

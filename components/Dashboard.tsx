@@ -10,9 +10,10 @@ interface DashboardProps {
   onSelectBook: (book: Book) => void;
   onBack: () => void;
   onLogout: () => void;
+  onOpenProfile: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, onSelectBook, onBack, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, onSelectBook, onBack, onLogout, onOpenProfile }) => {
   const [tab, setTab] = useState<'books' | 'downloads' | 'account'>('books');
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [downloadInfo, setDownloadInfo] = useState<DownloadInfo[]>([]);
@@ -247,6 +248,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
                 <label className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Books Owned</label>
                 <p className="text-themed font-medium mt-1">{purchasedBookIds.length} book{purchasedBookIds.length !== 1 ? 's' : ''}</p>
               </div>
+              <button
+                onClick={onOpenProfile}
+                className="w-full mt-2 bg-themed-muted text-themed-sub py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-themed border border-themed transition-all"
+              >
+                Edit Profile
+              </button>
             </div>
 
             {/* Purchase history */}
