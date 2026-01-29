@@ -61,6 +61,51 @@ export async function getProfile() {
   }>('/auth/me');
 }
 
+export async function updateProfile(data: { name?: string; language?: string }) {
+  return request<any>('/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Expression Space ──
+
+export async function getExpressionEntries() {
+  return request<any[]>('/expression');
+}
+
+export async function addExpressionEntry(entry: { text: string; category: string; mood?: string }) {
+  return request<any>('/expression', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteExpressionEntry(id: string) {
+  return request<any>(`/expression/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ── Journey Calendar ──
+
+export async function getJourneyEntries() {
+  return request<any[]>('/journey');
+}
+
+export async function addOrUpdateJourneyEntry(entry: any) {
+  return request<any>('/journey', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteJourneyEntry(date: string) {
+  return request<any>(`/journey/${date}`, {
+    method: 'DELETE',
+  });
+}
+
 // ── Books ──
 
 export async function getBooks() {

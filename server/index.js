@@ -8,6 +8,8 @@ import bookRoutes from './routes/books.js';
 import paymentRoutes from './routes/payments.js';
 import downloadRoutes from './routes/downloads.js';
 import webhookRoutes from './routes/webhooks.js';
+import expressionRoutes from './routes/expression.js';
+import journeyRoutes from './routes/journey.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -44,6 +46,8 @@ app.use('/api/books', bookRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/downloads', downloadRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/expression', expressionRoutes);
+app.use('/api/journey', journeyRoutes);
 
 // ── Email subscription (simple) ──
 import db from './db.js';

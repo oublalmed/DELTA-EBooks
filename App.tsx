@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE } from './types';
+import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
 
@@ -14,6 +14,7 @@ import Dashboard from './components/Dashboard';
 import PricingModal from './components/PricingModal';
 import ExpressionSpaceView from './components/ExpressionSpaceView';
 import JourneyCalendarView from './components/JourneyCalendarView';
+import ProfileView from './components/ProfileView';
 
 const App: React.FC = () => {
   // ── View state ──
@@ -36,6 +37,11 @@ const App: React.FC = () => {
   });
   const [fontSize, setFontSize] = useState<number>(() => {
     return parseInt(localStorage.getItem('delta_fontsize') || '18');
+  });
+
+  // ── Language ──
+  const [language, setLanguage] = useState<Language>(() => {
+    return (localStorage.getItem('delta_language') as Language) || 'en';
   });
 
   // ── Progress ──
@@ -65,6 +71,11 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('delta_fontsize', String(fontSize));
   }, [fontSize]);
+
+  // ── Language persistence ──
+  useEffect(() => {
+    localStorage.setItem('delta_language', language);
+  }, [language]);
 
   // ── Progress persistence ──
   useEffect(() => {
@@ -243,6 +254,24 @@ const App: React.FC = () => {
     setShowPricing(false);
   }, []);
 
+  const handleUpdateUser = useCallback(async (name: string) => {
+    if (!user) return;
+    const updatedUser = await api.updateProfile({ name });
+    setUser(updatedUser);
+  }, [user]);
+
+  const handleUpdateLanguage = useCallback((lang: Language) => {
+    setLanguage(lang);
+  }, []);
+
+  const handleOpenProfile = useCallback(() => {
+    if (!user) {
+      setView('auth');
+      return;
+    }
+    setView('profile');
+  }, [user]);
+
   // ── Progress handlers ──
   const toggleComplete = useCallback((bookId: string, chapterId: number) => {
     setProgress(prev => {
@@ -311,6 +340,18 @@ const App: React.FC = () => {
             onSelectBook={selectBook}
             onBack={() => setView('shelf')}
             onLogout={handleLogout}
+            onOpenProfile={handleOpenProfile}
+          />
+        );
+
+      case 'profile':
+        return (
+          <ProfileView
+            user={user!}
+            language={language}
+            onUpdateUser={handleUpdateUser}
+            onUpdateLanguage={handleUpdateLanguage}
+            onBack={() => setView('dashboard')}
           />
         );
 
@@ -329,8 +370,22 @@ const App: React.FC = () => {
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
-            onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
-            onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
+            onOpenExpression={() => {
+              if (!user) {
+                setView('auth');
+                return;
+              }
+              setView('expression');
+              window.scrollTo(0, 0);
+            }}
+            onOpenJourney={() => {
+              if (!user) {
+                setView('auth');
+                return;
+              }
+              setView('journey');
+              window.scrollTo(0, 0);
+            }}
           />
         );
 
@@ -358,11 +413,13 @@ const App: React.FC = () => {
             isBookPurchased={isBookPurchased(currentBook!.id)}
             theme={theme}
             fontSize={fontSize}
+            language={language}
             onToggleComplete={() => toggleComplete(currentBook!.id, currentChapter!.id)}
             onSaveReflection={(text) => saveReflection(currentBook!.id, currentChapter!.id, text)}
             onBack={() => setView('library')}
             onToggleTheme={cycleTheme}
             onSetFontSize={setFontSize}
+            onUpdateLanguage={handleUpdateLanguage}
             onUnlock={() => handleOpenPricing(currentBook!)}
             onNext={(id) => {
               const next = currentBook!.chapters.find(c => c.id === id);
@@ -398,7 +455,21 @@ const App: React.FC = () => {
         );
 
       default:
-        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }} onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }} />;
+        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => {
+          if (!user) {
+            setView('auth');
+            return;
+          }
+          setView('expression');
+          window.scrollTo(0, 0);
+        }} onOpenJourney={() => {
+          if (!user) {
+            setView('auth');
+            return;
+          }
+          setView('journey');
+          window.scrollTo(0, 0);
+        }} />;
     }
   };
 

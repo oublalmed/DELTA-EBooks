@@ -12,9 +12,10 @@
     "server:install": "cd server && npm install"
   },
   "dependencies": {
+    "@google/genai": "^1.38.0",
+    "@stripe/stripe-js": "^8.7.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "@google/genai": "^1.38.0"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
