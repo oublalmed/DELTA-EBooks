@@ -1,17 +1,15 @@
 
 import React, { useState } from 'react';
 import { Chapter, Book } from '../types';
-import AdBanner from './AdBanner';
 
 interface LibraryViewProps {
   book: Book;
   completedIds: number[];
-  isBookUnlocked: boolean;
-  freeChapters: number;
+  unlockedChapterIds: number[];
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
   onBack: () => void;
-  onUnlock: () => void;
+  onUnlockChapter: (chapter: Chapter) => void;
 }
 
 const accentMap: Record<string, { bg: string; text: string; badge: string; border: string }> = {
@@ -21,10 +19,11 @@ const accentMap: Record<string, { bg: string; text: string; badge: string; borde
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-500', border: 'border-emerald-200' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnlocked, freeChapters, onSelect, onChat, onBack, onUnlock }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedChapterIds, onSelect, onChat, onBack, onUnlockChapter }) => {
   const [search, setSearch] = useState('');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const progress = book.chapters.length > 0 ? Math.round((completedIds.length / book.chapters.length) * 100) : 0;
+  const unlockedSet = new Set(unlockedChapterIds);
 
   const filteredChapters = book.chapters.filter(ch =>
     ch.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -32,11 +31,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnl
   );
 
   const getChapterStatus = (chapter: Chapter) => {
-    if (isBookUnlocked) return 'accessible';
-    if (chapter.id <= 2) return 'free';
-    if (chapter.id === 3) return 'partial';
-    if (chapter.id === 4) return 'teaser';
-    return 'locked';
+    return unlockedSet.has(chapter.id) ? 'unlocked' : 'locked';
   };
 
   return (
@@ -68,14 +63,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnl
         <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
-              {isBookUnlocked ? (
+              {unlockedSet.size > 0 ? (
                 <span className="bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                  Unlocked
+                  {unlockedSet.size} unlocked
                 </span>
               ) : (
                 <span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                  {freeChapters} Preview Chapters
+                  All chapters locked
                 </span>
               )}
             </div>
@@ -115,19 +110,22 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnl
         </div>
 
         {/* Unlock banner */}
-        {!isBookUnlocked && (
+        {unlockedSet.size === 0 && (
           <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
-              <h3 className="text-white font-display text-lg font-medium">Unlock All {book.chapters.length} Chapters</h3>
-              <p className="text-stone-400 text-sm">Watch a short ad to unlock full access to this book.</p>
+              <h3 className="text-white font-display text-lg font-medium">Unlock Chapters as You Read</h3>
+              <p className="text-stone-400 text-sm">Watch a short ad to unlock the next chapter.</p>
             </div>
-            <button onClick={onUnlock} className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap">
-              Watch Ad to Unlock
-            </button>
+            {book.chapters[0] && (
+              <button
+                onClick={() => onUnlockChapter(book.chapters[0])}
+                className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap"
+              >
+                Unlock First Chapter
+              </button>
+            )}
           </div>
         )}
-
-        <AdBanner placement="library-mid" variant="banner" />
 
         {/* Chapters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -139,7 +137,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnl
             return (
               <div
                 key={chapter.id}
-                onClick={() => !isLocked ? onSelect(chapter) : onUnlock()}
+                onClick={() => !isLocked ? onSelect(chapter) : onUnlockChapter(chapter)}
                 className={`group cursor-pointer animate-fadeIn ${isLocked ? 'opacity-70' : ''}`}
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
@@ -162,9 +160,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnl
 
                     {/* Status badge */}
                     <div className="absolute top-3 right-3">
-                      {status === 'free' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Free</span>}
-                      {status === 'partial' && <span className="bg-amber-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Preview</span>}
-                      {status === 'teaser' && <span className="bg-orange-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Teaser</span>}
+                      {status === 'unlocked' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Unlocked</span>}
                       {status === 'locked' && (
                         <span className="bg-stone-700 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
                           <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>

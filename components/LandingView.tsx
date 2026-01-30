@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { BOOK_TITLE, AUTHOR, BOOK_SUBTITLE } from '../constants';
-import { FREE_CHAPTERS } from '../types';
 import EmailCapture from './EmailCapture';
 import Logo from './Logo';
 
@@ -144,7 +143,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             {[
               { value: totalBooks, label: 'Books' },
               { value: totalChapters, label: 'Chapters' },
-              { value: `${FREE_CHAPTERS}`, label: 'Free Preview' },
+              { value: 'Ad Unlock', label: 'Rewarded' },
               { value: '2,847+', label: 'Readers' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
@@ -161,7 +160,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
               className="group relative inline-flex items-center justify-center px-10 sm:px-14 py-5 font-bold tracking-wider text-stone-900 transition-all duration-500 bg-gradient-to-r from-amber-300 via-amber-200 to-amber-300 rounded-full hover:shadow-2xl hover:shadow-amber-400/30 hover:-translate-y-1 active:translate-y-0 text-sm uppercase"
             >
               <span className="relative z-10 flex items-center gap-3">
-                Start Reading — It's Free
+                Start Reading — Ad Supported
                 <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -178,12 +177,12 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             </button>
           </div>
 
-          {/* Free badge */}
-          <div className="inline-flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-300 px-5 py-2.5 rounded-full text-xs font-bold mb-8 border border-emerald-400/20 animate-fadeIn stagger-5">
+      {/* Ad-supported badge */}
+      <div className="inline-flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-300 px-5 py-2.5 rounded-full text-xs font-bold mb-8 border border-emerald-400/20 animate-fadeIn stagger-5">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
             </svg>
-            No sign-up required — Ad-supported reading
+        No sign-up required — Watch ads to unlock chapters
           </div>
         </div>
       </div>

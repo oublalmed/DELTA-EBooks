@@ -16,13 +16,13 @@ const AdBanner: React.FC<AdBannerProps> = ({ placement = 'default', variant = 'b
   return (
     <div className={`ad-banner rounded-2xl p-4 ${className}`}>
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-themed-muted">
-        <span>Advertisement</span>
-        <span className="text-themed-sub">Mobile Ad Slot</span>
+        <span>Rewarded Ad</span>
+        <span className="text-themed-sub">Watch to Unlock</span>
       </div>
       <div className={`mt-3 w-full ${sizeMap[variant]} bg-themed-card border border-themed rounded-xl flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-[10px] uppercase tracking-wider font-bold text-themed-muted">Sponsored</div>
-          <p className="text-themed-sub text-xs mt-1">Ad placement: {placement}</p>
+          <p className="text-themed-sub text-xs mt-1">Placement: {placement}</p>
         </div>
       </div>
     </div>

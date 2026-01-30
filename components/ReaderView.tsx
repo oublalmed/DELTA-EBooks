@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Chapter, Book, ThemeMode, Language } from '../types';
 import { getChapterInsight } from '../services/geminiService';
 import { translations } from '../i18n';
-import AdBanner from './AdBanner';
 
 interface ReaderViewProps {
   book: Book;
@@ -19,7 +18,6 @@ interface ReaderViewProps {
   onToggleTheme: () => void;
   onSetFontSize: (size: number) => void;
   onUpdateLanguage: (language: Language) => void;
-  onUnlock: () => void;
   onNext: (id: number) => void;
 }
 
@@ -44,7 +42,6 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   onToggleTheme,
   onSetFontSize,
   onUpdateLanguage,
-  onUnlock,
   onNext
 }) => {
   const [reflection, setReflection] = useState(savedReflection);
@@ -58,10 +55,6 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   const paragraphs = chapter.content.split('\n\n');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const readingTime = Math.ceil(chapter.content.split(' ').length / 200);
-
-  const isPartial = !!(chapter as any).isPartial;
-  const isTeaser = !!(chapter as any).isTeaser;
-  const accessMessage = (chapter as any).accessMessage || '';
 
   useEffect(() => {
     setReflection(savedReflection);
@@ -254,18 +247,6 @@ const ReaderView: React.FC<ReaderViewProps> = ({
             <span>Chapter {chapter.id}</span>
             <span>&#x2022;</span>
             <span>{readingTime} min read</span>
-            {isPartial && !isTeaser && (
-              <>
-                <span>&#x2022;</span>
-                <span className="text-amber-500 font-bold">Preview</span>
-              </>
-            )}
-            {isTeaser && (
-              <>
-                <span>&#x2022;</span>
-                <span className="text-orange-500 font-bold">Teaser</span>
-              </>
-            )}
           </div>
         </header>
 
@@ -307,7 +288,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
         )}
 
         {/* Chapter content */}
-        <div className={`mb-20 sm:mb-28 ${isPartial ? 'relative' : ''}`}>
+        <div className="mb-20 sm:mb-28">
           {paragraphs.map((para, index) => (
             <p
               key={index}
@@ -317,148 +298,96 @@ const ReaderView: React.FC<ReaderViewProps> = ({
               {para}
             </p>
           ))}
-
-          {/* Content fade + unlock CTA for partial/teaser chapters */}
-          {isPartial && (
-            <div className="relative">
-              <div className="content-fade" />
-              <div className="mt-8 bg-themed-card rounded-3xl border border-themed p-8 sm:p-10 text-center relative overflow-hidden shadow-xl">
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute top-[-50%] left-[50%] -translate-x-1/2 w-[80%] h-[80%] bg-amber-50/20 rounded-full blur-[80px]" />
-                </div>
-                <div className="relative z-10">
-                  <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                    <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-display text-2xl text-themed font-medium mb-2">
-                    {isTeaser ? 'The journey continues...' : 'Unlock the full chapter'}
-                  </h3>
-                  <p className="text-themed-sub font-serif italic text-base mb-2 max-w-md mx-auto">
-                    {accessMessage}
-                  </p>
-                  <p className="text-themed-muted text-xs mb-6">
-                    Join 2,847+ readers who are transforming their lives through this wisdom.
-                  </p>
-                  <button
-                    onClick={onUnlock}
-                    className="cta-premium text-white px-10 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all hover:shadow-2xl hover:-translate-y-0.5 inline-flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    Watch Ad to Unlock
-                  </button>
-                  <div className="mt-4 text-themed-muted text-[10px] uppercase tracking-wider font-bold">
-                    Ad-supported access keeps the library free
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+        </div>
+        {/* Chapter summary */}
+        <div className="mb-20 p-6 sm:p-8 bg-themed-muted rounded-2xl border border-themed">
+          <p className="text-[10px] uppercase tracking-widest text-themed-muted font-bold mb-3">Chapter Summary</p>
+          <p className="font-serif italic text-lg text-themed-sub leading-relaxed">{chapter.summary}</p>
         </div>
 
-        <div className="mb-12">
-          <AdBanner placement="reader-mid" variant="banner" />
+        {/* Reflection section */}
+        <section className="p-8 sm:p-10 bg-themed-card border border-themed rounded-3xl shadow-xl relative animate-fadeIn">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-display font-medium text-themed">Sacred Reflection</h3>
+          </div>
+          <p className="text-themed-muted text-xs mb-6">Take a moment to reflect on what you've read</p>
+
+          <div className={`p-5 sm:p-6 rounded-xl border mb-6 ${colors.reflectionBg}`}>
+            <p className="text-stone-700 text-lg sm:text-xl italic font-serif leading-relaxed">{chapter.reflectionPrompt}</p>
+          </div>
+
+          <textarea
+            value={reflection}
+            onChange={(e) => setReflection(e.target.value)}
+            className="w-full h-48 sm:h-56 p-5 sm:p-6 bg-themed-muted border border-themed rounded-xl outline-none font-serif text-lg text-themed focus:ring-2 focus:ring-stone-300 transition-all resize-none"
+            placeholder="Write your thoughts here..."
+          />
+          <button
+            onClick={handleSave}
+            className={`mt-4 w-full py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-all ${
+              saved
+                ? 'bg-emerald-500 text-white'
+                : 'bg-stone-800 text-white hover:bg-stone-700 active:scale-[0.99]'
+            }`}
+          >
+            {saved ? 'Saved to Journal' : 'Commit to Journal'}
+          </button>
+        </section>
+
+        {/* Share section */}
+        <div className="mt-16 mb-16 text-center">
+          <p className="text-themed-muted text-[10px] font-bold uppercase tracking-widest mb-4">Share this chapter</p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Reading "${chapter.title}" from "${book.title}" by ${book.author} — a powerful chapter on ${chapter.summary.toLowerCase()}`)}`, '_blank')}
+              className="w-10 h-10 rounded-full bg-themed-muted hover:bg-stone-800 hover:text-white text-themed-muted flex items-center justify-center transition-all"
+              title="Share on X/Twitter"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </button>
+            <button
+              onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(`"${chapter.title}" — ${book.title} by ${book.author}`)}`, '_blank')}
+              className="w-10 h-10 rounded-full bg-themed-muted hover:bg-blue-600 hover:text-white text-themed-muted flex items-center justify-center transition-all"
+              title="Share on Facebook"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            </button>
+            <button
+              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`I'm reading "${chapter.title}" from "${book.title}" by ${book.author}. Check it out!`)}`, '_blank')}
+              className="w-10 h-10 rounded-full bg-themed-muted hover:bg-green-500 hover:text-white text-themed-muted flex items-center justify-center transition-all"
+              title="Share on WhatsApp"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            </button>
+            <button
+              onClick={() => {
+                const text = `"${chapter.title}" — ${book.title} by ${book.author}`;
+                navigator.clipboard.writeText(text);
+              }}
+              className="w-10 h-10 rounded-full bg-themed-muted hover:bg-stone-800 hover:text-white text-themed-muted flex items-center justify-center transition-all"
+              title="Copy to clipboard"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+            </button>
+          </div>
         </div>
-
-        {/* Only show reflection, summary, share, and nav for full-access chapters */}
-        {!isPartial && (
-          <>
-            {/* Chapter summary */}
-            <div className="mb-20 p-6 sm:p-8 bg-themed-muted rounded-2xl border border-themed">
-              <p className="text-[10px] uppercase tracking-widest text-themed-muted font-bold mb-3">Chapter Summary</p>
-              <p className="font-serif italic text-lg text-themed-sub leading-relaxed">{chapter.summary}</p>
-            </div>
-
-            {/* Reflection section */}
-            <section className="p-8 sm:p-10 bg-themed-card border border-themed rounded-3xl shadow-xl relative animate-fadeIn">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-display font-medium text-themed">Sacred Reflection</h3>
-              </div>
-              <p className="text-themed-muted text-xs mb-6">Take a moment to reflect on what you've read</p>
-
-              <div className={`p-5 sm:p-6 rounded-xl border mb-6 ${colors.reflectionBg}`}>
-                <p className="text-stone-700 text-lg sm:text-xl italic font-serif leading-relaxed">{chapter.reflectionPrompt}</p>
-              </div>
-
-              <textarea
-                value={reflection}
-                onChange={(e) => setReflection(e.target.value)}
-                className="w-full h-48 sm:h-56 p-5 sm:p-6 bg-themed-muted border border-themed rounded-xl outline-none font-serif text-lg text-themed focus:ring-2 focus:ring-stone-300 transition-all resize-none"
-                placeholder="Write your thoughts here..."
-              />
-              <button
-                onClick={handleSave}
-                className={`mt-4 w-full py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-all ${
-                  saved
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-stone-800 text-white hover:bg-stone-700 active:scale-[0.99]'
-                }`}
-              >
-                {saved ? 'Saved to Journal' : 'Commit to Journal'}
-              </button>
-            </section>
-
-            {/* Share section */}
-            <div className="mt-16 mb-16 text-center">
-              <p className="text-themed-muted text-[10px] font-bold uppercase tracking-widest mb-4">Share this chapter</p>
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Reading "${chapter.title}" from "${book.title}" by ${book.author} — a powerful chapter on ${chapter.summary.toLowerCase()}`)}`, '_blank')}
-                  className="w-10 h-10 rounded-full bg-themed-muted hover:bg-stone-800 hover:text-white text-themed-muted flex items-center justify-center transition-all"
-                  title="Share on X/Twitter"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                </button>
-                <button
-                  onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(`"${chapter.title}" — ${book.title} by ${book.author}`)}`, '_blank')}
-                  className="w-10 h-10 rounded-full bg-themed-muted hover:bg-blue-600 hover:text-white text-themed-muted flex items-center justify-center transition-all"
-                  title="Share on Facebook"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                </button>
-                <button
-                  onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`I'm reading "${chapter.title}" from "${book.title}" by ${book.author}. Check it out!`)}`, '_blank')}
-                  className="w-10 h-10 rounded-full bg-themed-muted hover:bg-green-500 hover:text-white text-themed-muted flex items-center justify-center transition-all"
-                  title="Share on WhatsApp"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                </button>
-                <button
-                  onClick={() => {
-                    const text = `"${chapter.title}" — ${book.title} by ${book.author}`;
-                    navigator.clipboard.writeText(text);
-                  }}
-                  className="w-10 h-10 rounded-full bg-themed-muted hover:bg-stone-800 hover:text-white text-themed-muted flex items-center justify-center transition-all"
-                  title="Copy to clipboard"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Motivational closing */}
-        {!isPartial && (
-          <div className="mb-12 text-center">
-            <div className="ornament-divider mb-4">
-              <span className="text-themed-muted text-lg">&#x2726;</span>
-            </div>
-            <p className="text-themed-muted font-serif italic text-sm max-w-md mx-auto">
-              "Every chapter you complete is a step closer to the person you were meant to become."
-            </p>
+        <div className="mb-12 text-center">
+          <div className="ornament-divider mb-4">
+            <span className="text-themed-muted text-lg">&#x2726;</span>
           </div>
-        )}
+          <p className="text-themed-muted font-serif italic text-sm max-w-md mx-auto">
+            "Every chapter you complete is a step closer to the person you were meant to become."
+          </p>
+        </div>
 
         {/* Navigation between chapters */}
         <div className="flex items-center justify-between py-6 border-t border-themed">

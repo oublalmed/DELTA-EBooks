@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS } from './types';
+import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
 
@@ -16,20 +16,43 @@ import ExpressionSpaceView from './components/ExpressionSpaceView';
 import JourneyCalendarView from './components/JourneyCalendarView';
 import ProfileView from './components/ProfileView';
 
+type FeatureKey = 'expression' | 'journey';
+
+type FeatureAccessState = {
+  trialUsed: number;
+  unlockUntil: string | null;
+};
+
+type AdUnlockContext =
+  | { type: 'chapter'; book: Book; chapter: Chapter }
+  | { type: 'feature'; feature: FeatureKey };
+
+const FEATURE_TRIAL_LIMIT = 5;
+const FEATURE_UNLOCK_DAYS = 7;
+
 const App: React.FC = () => {
   // ── View state ──
   const [view, setView] = useState<ViewState>(() => {
     const hasVisited = localStorage.getItem('delta_visited');
     return hasVisited ? 'shelf' : 'landing';
   });
+  const [books, setBooks] = useState<Book[]>(BOOKS);
+  const [booksLoading, setBooksLoading] = useState(true);
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
 
   // ── Auth state ──
   const [user, setUser] = useState<User | null>(null);
-  const [adUnlockedBookIds, setAdUnlockedBookIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('delta_ad_unlocks');
-    return saved ? JSON.parse(saved) : [];
+  const [unlockedChapters, setUnlockedChapters] = useState<Record<string, number[]>>(() => {
+    const saved = localStorage.getItem('delta_unlocked_chapters');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [featureAccess, setFeatureAccess] = useState<Record<FeatureKey, FeatureAccessState>>(() => {
+    const saved = localStorage.getItem('delta_feature_access');
+    return saved ? JSON.parse(saved) : {
+      expression: { trialUsed: 0, unlockUntil: null },
+      journey: { trialUsed: 0, unlockUntil: null },
+    };
   });
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -55,7 +78,7 @@ const App: React.FC = () => {
 
   // ── Ad unlock modal ──
   const [showAdUnlock, setShowAdUnlock] = useState(false);
-  const [adTargetBook, setAdTargetBook] = useState<Book | null>(null);
+  const [adUnlockContext, setAdUnlockContext] = useState<AdUnlockContext | null>(null);
 
   // ── Reading streak ──
   const [streak, setStreak] = useState<ReadingStreak>(() => {
@@ -91,8 +114,13 @@ const App: React.FC = () => {
 
   // ── Ad unlock persistence ──
   useEffect(() => {
-    localStorage.setItem('delta_ad_unlocks', JSON.stringify(adUnlockedBookIds));
-  }, [adUnlockedBookIds]);
+    localStorage.setItem('delta_unlocked_chapters', JSON.stringify(unlockedChapters));
+  }, [unlockedChapters]);
+
+  // ── Feature access persistence ──
+  useEffect(() => {
+    localStorage.setItem('delta_feature_access', JSON.stringify(featureAccess));
+  }, [featureAccess]);
 
   const updateStreak = useCallback(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -136,6 +164,47 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // ── Load books dynamically ──
+  useEffect(() => {
+    let isMounted = true;
+    setBooksLoading(true);
+    api.getBooks()
+      .then(data => {
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          const systemPromptMap = BOOKS.reduce<Record<string, string>>((acc, book) => {
+            acc[book.id] = book.systemPrompt;
+            return acc;
+          }, {});
+          const normalized = data.map(book => ({
+            ...book,
+            systemPrompt: book.systemPrompt || systemPromptMap[book.id] || '',
+            chapters: book.chapters || [],
+          }));
+          setBooks(normalized);
+        }
+      })
+      .catch(() => {
+        // Fallback to bundled books
+      })
+      .finally(() => {
+        if (isMounted) setBooksLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!currentBook) return;
+    const updatedBook = books.find(b => b.id === currentBook.id);
+    if (!updatedBook) return;
+    if (updatedBook !== currentBook) {
+      setCurrentBook(updatedBook);
+      if (currentChapter) {
+        const updatedChapter = updatedBook.chapters.find(ch => ch.id === currentChapter.id);
+        if (updatedChapter) setCurrentChapter(updatedChapter);
+      }
+    }
+  }, [books, currentBook, currentChapter]);
+
   // ── Auth handlers ──
   const handleLogin = useCallback(async (email: string, password: string) => {
     setAuthError(null);
@@ -143,14 +212,41 @@ const App: React.FC = () => {
     localStorage.setItem('delta_token', data.token);
     setUser(data.user);
     setView('shelf');
+    return data;
   }, []);
 
   const handleRegister = useCallback(async (email: string, password: string, name: string) => {
     setAuthError(null);
-    const data = await api.register(email, password, name);
+    return api.register(email, password, name);
+  }, []);
+
+  const handleVerifyEmail = useCallback(async (email: string, code: string) => {
+    setAuthError(null);
+    return api.verifyEmail(email, code);
+  }, []);
+
+  const handleResendVerification = useCallback(async (email: string) => {
+    setAuthError(null);
+    return api.resendVerification(email);
+  }, []);
+
+  const handleForgotPassword = useCallback(async (email: string) => {
+    setAuthError(null);
+    return api.requestPasswordReset(email);
+  }, []);
+
+  const handleResetPassword = useCallback(async (email: string, token: string, password: string) => {
+    setAuthError(null);
+    return api.resetPassword(email, token, password);
+  }, []);
+
+  const handleGoogleSignIn = useCallback(async (credential: string) => {
+    setAuthError(null);
+    const data = await api.googleSignIn(credential);
     localStorage.setItem('delta_token', data.token);
     setUser(data.user);
     setView('shelf');
+    return data;
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -160,24 +256,14 @@ const App: React.FC = () => {
   }, []);
 
   // ── Content access ──
-  const isBookUnlocked = useCallback((bookId: string) => {
-    return adUnlockedBookIds.includes(bookId);
-  }, [adUnlockedBookIds]);
+  const isChapterUnlocked = useCallback((bookId: string, chapterId: number) => {
+    const unlocked = unlockedChapters[bookId] || [];
+    return unlocked.includes(chapterId);
+  }, [unlockedChapters]);
 
   const isChapterAccessible = useCallback((bookId: string, chapterId: number) => {
-    if (isBookUnlocked(bookId)) return true;
-    return chapterId <= FREE_CHAPTERS;
-  }, [isBookUnlocked]);
-
-  const isChapterPartial = useCallback((bookId: string, chapterId: number) => {
-    if (isBookUnlocked(bookId)) return false;
-    return chapterId === 3; // Chapter 3 is partially visible
-  }, [isBookUnlocked]);
-
-  const isChapterTeaser = useCallback((bookId: string, chapterId: number) => {
-    if (isBookUnlocked(bookId)) return false;
-    return chapterId === 4; // Chapter 4 is a teaser
-  }, [isBookUnlocked]);
+    return isChapterUnlocked(bookId, chapterId);
+  }, [isChapterUnlocked]);
 
   // ── Navigation handlers ──
   const selectBook = useCallback((book: Book) => {
@@ -191,57 +277,61 @@ const App: React.FC = () => {
     setView('shelf');
   }, []);
 
-  const handleSelectChapter = useCallback((chapter: Chapter) => {
-    if (!currentBook) return;
+  const openChapter = useCallback((book: Book, chapter: Chapter) => {
+    if (!currentBook || currentBook.id !== book.id) {
+      setCurrentBook(book);
+    }
+    setCurrentChapter(chapter);
+    setView('reader');
+    window.scrollTo(0, 0);
+    updateStreak();
+  }, [currentBook, updateStreak]);
 
-    if (!isChapterAccessible(currentBook.id, chapter.id)) {
-      // Locked chapter — show ad unlock
-      setAdTargetBook(currentBook);
+  const handleSelectChapter = useCallback((chapter: Chapter, bookOverride?: Book) => {
+    const book = bookOverride || currentBook;
+    if (!book) return;
+
+    if (!isChapterAccessible(book.id, chapter.id)) {
+      setAdUnlockContext({ type: 'chapter', book, chapter });
       setShowAdUnlock(true);
       return;
     }
 
-    // Apply partial/teaser content rules client-side
-    let processedChapter = { ...chapter };
-    if (isChapterPartial(currentBook.id, chapter.id)) {
-      const words = chapter.content.split(' ');
-      const cutPoint = Math.floor(words.length * 0.6);
-      processedChapter = {
-        ...chapter,
-        content: words.slice(0, cutPoint).join(' '),
-        isPartial: true,
-        accessMessage: 'This chapter continues... Watch a short ad to unlock the full content.',
-      };
-    } else if (isChapterTeaser(currentBook.id, chapter.id)) {
-      const words = chapter.content.split(' ');
-      const cutPoint = Math.floor(words.length * 0.3);
-      processedChapter = {
-        ...chapter,
-        content: words.slice(0, cutPoint).join(' '),
-        isTeaser: true,
-        isPartial: true,
-        accessMessage: 'The story continues with a powerful revelation... Watch a short ad to discover what comes next.',
-      };
+    openChapter(book, chapter);
+  }, [currentBook, isChapterAccessible, openChapter]);
+
+  const handleOpenAdUnlockForFeature = useCallback((feature: FeatureKey) => {
+    setAdUnlockContext({ type: 'feature', feature });
+    setShowAdUnlock(true);
+  }, []);
+
+  const handleAdUnlockComplete = useCallback(() => {
+    if (!adUnlockContext) return;
+
+    if (adUnlockContext.type === 'chapter') {
+      const { book, chapter } = adUnlockContext;
+      setUnlockedChapters(prev => {
+        const existing = prev[book.id] || [];
+        if (existing.includes(chapter.id)) return prev;
+        return { ...prev, [book.id]: [...existing, chapter.id] };
+      });
+      setShowAdUnlock(false);
+      setAdUnlockContext(null);
+      openChapter(book, chapter);
+      return;
     }
 
-    setCurrentChapter(processedChapter);
-    setView('reader');
-    window.scrollTo(0, 0);
-    updateStreak(); // Track reading streak
-  }, [currentBook, isChapterAccessible, isChapterPartial, isChapterTeaser, updateStreak]);
-
-  const handleOpenAdUnlock = useCallback((book?: Book) => {
-    const target = book || currentBook;
-    if (!target || isBookUnlocked(target.id)) return;
-    setAdTargetBook(target);
-    setShowAdUnlock(true);
-  }, [currentBook, isBookUnlocked]);
-
-  const handleAdUnlockComplete = useCallback((bookId: string) => {
-    setAdUnlockedBookIds(prev => [...new Set([...prev, bookId])]);
+    const unlockUntil = new Date(Date.now() + FEATURE_UNLOCK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    setFeatureAccess(prev => ({
+      ...prev,
+      [adUnlockContext.feature]: { ...prev[adUnlockContext.feature], unlockUntil },
+    }));
     setShowAdUnlock(false);
-    setAdTargetBook(null);
-  }, []);
+    const feature = adUnlockContext.feature;
+    setAdUnlockContext(null);
+    setView(feature === 'expression' ? 'expression' : 'journey');
+    window.scrollTo(0, 0);
+  }, [adUnlockContext, openChapter]);
 
   const handleUpdateUser = useCallback(async (name: string) => {
     if (!user) return;
@@ -260,6 +350,55 @@ const App: React.FC = () => {
     }
     setView('profile');
   }, [user]);
+
+  // ── Feature access ──
+  const isFeatureUnlocked = useCallback((feature: FeatureKey) => {
+    const unlockUntil = featureAccess[feature]?.unlockUntil;
+    if (!unlockUntil) return false;
+    return new Date(unlockUntil).getTime() > Date.now();
+  }, [featureAccess]);
+
+  const consumeFeatureTrial = useCallback((feature: FeatureKey) => {
+    setFeatureAccess(prev => {
+      const current = prev[feature];
+      if (current.trialUsed >= FEATURE_TRIAL_LIMIT) return prev;
+      return {
+        ...prev,
+        [feature]: { ...current, trialUsed: current.trialUsed + 1 }
+      };
+    });
+  }, []);
+
+  const handleOpenFeature = useCallback((feature: FeatureKey) => {
+    if (!user) {
+      setView('auth');
+      return;
+    }
+
+    const unlockUntil = featureAccess[feature]?.unlockUntil;
+    if (unlockUntil && new Date(unlockUntil).getTime() <= Date.now()) {
+      setFeatureAccess(prev => ({
+        ...prev,
+        [feature]: { ...prev[feature], unlockUntil: null }
+      }));
+    }
+
+    if (isFeatureUnlocked(feature)) {
+      setView(feature === 'expression' ? 'expression' : 'journey');
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    const trialUsed = featureAccess[feature]?.trialUsed || 0;
+    if (trialUsed < FEATURE_TRIAL_LIMIT) {
+      consumeFeatureTrial(feature);
+      setView(feature === 'expression' ? 'expression' : 'journey');
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    handleOpenAdUnlockForFeature(feature);
+  }, [consumeFeatureTrial, featureAccess, handleOpenAdUnlockForFeature, isFeatureUnlocked, user]);
 
   // ── Progress handlers ──
   const toggleComplete = useCallback((bookId: string, chapterId: number) => {
@@ -293,7 +432,7 @@ const App: React.FC = () => {
     ? (progress.books[currentBook.id] || { completedIds: [], reflections: {} })
     : { completedIds: [], reflections: {} };
 
-  const totalChapters = BOOKS.reduce((sum, b) => sum + b.chapters.length, 0);
+  const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
 
   // ── Theme cycling ──
   const cycleTheme = useCallback(() => {
@@ -308,13 +447,18 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case 'landing':
-        return <LandingView onEnter={handleEnterLibrary} totalBooks={BOOKS.length} totalChapters={totalChapters} />;
+        return <LandingView onEnter={handleEnterLibrary} totalBooks={books.length} totalChapters={totalChapters} />;
 
       case 'auth':
         return (
           <AuthView
             onLogin={handleLogin}
             onRegister={handleRegister}
+            onVerifyEmail={handleVerifyEmail}
+            onResendVerification={handleResendVerification}
+            onForgotPassword={handleForgotPassword}
+            onResetPassword={handleResetPassword}
+            onGoogleSignIn={handleGoogleSignIn}
             onBack={() => setView('shelf')}
             error={authError}
           />
@@ -324,14 +468,17 @@ const App: React.FC = () => {
         return (
           <Dashboard
             user={user!}
-            books={BOOKS}
-            unlockedBookIds={adUnlockedBookIds}
+            books={books}
+            unlockedChapters={unlockedChapters}
             progress={progress}
             onSelectBook={selectBook}
             onBack={() => setView('shelf')}
             onLogout={handleLogout}
             onOpenProfile={handleOpenProfile}
-            onUnlock={handleOpenAdUnlock}
+            onUnlockChapter={(book, chapter) => {
+              setAdUnlockContext({ type: 'chapter', book, chapter });
+              setShowAdUnlock(true);
+            }}
           />
         );
 
@@ -349,33 +496,22 @@ const App: React.FC = () => {
       case 'shelf':
         return (
           <ShelfView
-            books={BOOKS}
+            books={books}
             progress={progress}
-            unlockedBookIds={adUnlockedBookIds}
+            unlockedChapters={unlockedChapters}
             user={user}
             theme={theme}
             streak={streak}
             onSelect={selectBook}
-            onUnlock={handleOpenAdUnlock}
+            onUnlockChapter={(book, chapter) => {
+              setAdUnlockContext({ type: 'chapter', book, chapter });
+              setShowAdUnlock(true);
+            }}
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
-            onOpenExpression={() => {
-              if (!user) {
-                setView('auth');
-                return;
-              }
-              setView('expression');
-              window.scrollTo(0, 0);
-            }}
-            onOpenJourney={() => {
-              if (!user) {
-                setView('auth');
-                return;
-              }
-              setView('journey');
-              window.scrollTo(0, 0);
-            }}
+            onOpenExpression={() => handleOpenFeature('expression')}
+            onOpenJourney={() => handleOpenFeature('journey')}
           />
         );
 
@@ -384,12 +520,14 @@ const App: React.FC = () => {
           <LibraryView
             book={currentBook!}
             completedIds={currentBookProgress.completedIds}
-            isBookUnlocked={isBookUnlocked(currentBook!.id)}
-            freeChapters={FREE_CHAPTERS}
+            unlockedChapterIds={unlockedChapters[currentBook!.id] || []}
             onSelect={handleSelectChapter}
             onChat={() => setView('chat')}
             onBack={() => setView('shelf')}
-            onUnlock={() => handleOpenAdUnlock(currentBook!)}
+            onUnlockChapter={(chapter) => {
+              setAdUnlockContext({ type: 'chapter', book: currentBook!, chapter });
+              setShowAdUnlock(true);
+            }}
           />
         );
 
@@ -409,12 +547,11 @@ const App: React.FC = () => {
             onToggleTheme={cycleTheme}
             onSetFontSize={setFontSize}
             onUpdateLanguage={handleUpdateLanguage}
-            onUnlock={() => handleOpenAdUnlock(currentBook!)}
             onNext={(id) => {
               const next = currentBook!.chapters.find(c => c.id === id);
               if (next) {
                 if (!isChapterAccessible(currentBook!.id, next.id)) {
-                  setAdTargetBook(currentBook);
+                  setAdUnlockContext({ type: 'chapter', book: currentBook!, chapter: next });
                   setShowAdUnlock(true);
                   return;
                 }
@@ -431,7 +568,7 @@ const App: React.FC = () => {
         return (
           <ExpressionSpaceView
             onBack={() => setView('shelf')}
-            onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
+            onOpenJourney={() => handleOpenFeature('journey')}
           />
         );
 
@@ -439,30 +576,19 @@ const App: React.FC = () => {
         return (
           <JourneyCalendarView
             onBack={() => setView('shelf')}
-            onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
+            onOpenExpression={() => handleOpenFeature('expression')}
           />
         );
 
       default:
-        return <ShelfView books={BOOKS} progress={progress} unlockedBookIds={adUnlockedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onUnlock={handleOpenAdUnlock} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => {
-          if (!user) {
-            setView('auth');
-            return;
-          }
-          setView('expression');
-          window.scrollTo(0, 0);
-        }} onOpenJourney={() => {
-          if (!user) {
-            setView('auth');
-            return;
-          }
-          setView('journey');
-          window.scrollTo(0, 0);
-        }} />;
+        return <ShelfView books={books} progress={progress} unlockedChapters={unlockedChapters} user={user} theme={theme} streak={streak} onSelect={selectBook} onUnlockChapter={(book, chapter) => {
+          setAdUnlockContext({ type: 'chapter', book, chapter });
+          setShowAdUnlock(true);
+        }} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => handleOpenFeature('expression')} onOpenJourney={() => handleOpenFeature('journey')} />;
     }
   };
 
-  if (authLoading) {
+  if (authLoading || booksLoading) {
     return (
       <div className="min-h-screen bg-themed flex items-center justify-center">
         <div className="text-center animate-fadeIn">
@@ -479,12 +605,19 @@ const App: React.FC = () => {
         {renderView()}
       </div>
 
-      {showAdUnlock && adTargetBook && (
+      {showAdUnlock && adUnlockContext && (
         <AdUnlockModal
           isOpen={showAdUnlock}
-          bookTitle={adTargetBook.title}
-          onClose={() => { setShowAdUnlock(false); setAdTargetBook(null); }}
-          onUnlock={() => handleAdUnlockComplete(adTargetBook.id)}
+          title={adUnlockContext.type === 'chapter' ? `Unlock "${adUnlockContext.chapter.title}"` : 'Unlock Weekly Access'}
+          description={
+            adUnlockContext.type === 'chapter'
+              ? `Watch a rewarded ad to unlock this chapter in "${adUnlockContext.book.title}".`
+              : `Watch a rewarded ad to unlock ${adUnlockContext.feature === 'expression' ? 'Expressive Journal' : 'Personal Calendar'} for 7 days.`
+          }
+          confirmLabel={adUnlockContext.type === 'chapter' ? 'Unlock Chapter' : 'Unlock for 7 Days'}
+          placement={adUnlockContext.type === 'chapter' ? 'rewarded-chapter' : `rewarded-${adUnlockContext.feature}`}
+          onClose={() => { setShowAdUnlock(false); setAdUnlockContext(null); }}
+          onUnlock={handleAdUnlockComplete}
         />
       )}
     </div>

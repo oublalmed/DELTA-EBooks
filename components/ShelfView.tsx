@@ -1,20 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { Book, UserProgress, User, ThemeMode, ReadingStreak, FREE_CHAPTERS } from '../types';
+import { Book, Chapter, UserProgress, User, ThemeMode, ReadingStreak } from '../types';
 import { AUTHOR } from '../constants';
-import AdBanner from './AdBanner';
 import EmailCapture from './EmailCapture';
 import Logo from './Logo';
 
 interface ShelfViewProps {
   books: Book[];
   progress: UserProgress;
-  unlockedBookIds: string[];
+  unlockedChapters: Record<string, number[]>;
   user: User | null;
   theme: ThemeMode;
   streak: ReadingStreak;
   onSelect: (book: Book) => void;
-  onUnlock: (book?: Book) => void;
+  onUnlockChapter: (book: Book, chapter: Chapter) => void;
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
@@ -57,14 +56,15 @@ const streakBadges = [
   { min: 100, label: 'Enlightened', icon: '👑' },
 ];
 
-const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds, user, theme, streak, onSelect, onUnlock, onToggleTheme, onOpenAuth, onOpenDashboard, onOpenExpression, onOpenJourney }) => {
+const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedChapters, user, theme, streak, onSelect, onUnlockChapter, onToggleTheme, onOpenAuth, onOpenDashboard, onOpenExpression, onOpenJourney }) => {
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const totalCompleted = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
     return sum + (bp ? bp.completedIds.length : 0);
   }, 0);
   const overallPercent = totalChapters > 0 ? Math.round((totalCompleted / totalChapters) * 100) : 0;
-  const hasUnlocks = unlockedBookIds.length > 0;
+  const totalUnlockedChapters = Object.values(unlockedChapters).reduce((sum, chapters) => sum + chapters.length, 0);
+  const hasUnlocks = totalUnlockedChapters > 0;
   const [readerCount, setReaderCount] = useState(142);
   const [testimonialIdx, setTestimonialIdx] = useState(0);
 
@@ -170,7 +170,7 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
               <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                 <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-xs font-bold">
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                  First {FREE_CHAPTERS} chapters preview
+                  Rewarded ads unlock chapters
                 </div>
                 <div className="inline-flex items-center gap-2 bg-themed-card border border-themed text-themed-sub px-4 py-2 rounded-full text-xs font-bold">Ad-supported unlocks &middot; No subscription</div>
                 <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full text-xs font-bold">
@@ -204,10 +204,15 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
         </div>
       </div>
 
-      {/* Featured ad banner for new readers */}
+      {/* Featured section for new readers */}
       {!hasUnlocks && (
         <div className="max-w-6xl mx-auto px-6 pb-10">
-          <AdBanner placement="shelf-featured" variant="medium" />
+          <div className="bg-themed-card border border-themed rounded-2xl p-6 sm:p-8 text-center">
+            <h3 className="font-display text-xl text-themed font-medium mb-2">Ad-Supported Library</h3>
+            <p className="text-themed-sub text-sm">
+              Unlock any chapter by watching a short rewarded ad. No subscriptions, no paywalls.
+            </p>
+          </div>
         </div>
       )}
 
@@ -256,7 +261,7 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
             const chapterCount = book.chapters.length;
             const bookPercent = chapterCount > 0 ? Math.round((completedCount / chapterCount) * 100) : 0;
             const colors = accentMap[book.accentColor] || accentMap.stone;
-            const isUnlocked = unlockedBookIds.includes(book.id);
+            const unlockedCount = unlockedChapters[book.id]?.length || 0;
 
             return (
               <div key={book.id} onClick={() => onSelect(book)} className="group cursor-pointer animate-fadeIn" style={{ animationDelay: `${index * 0.15}s` }}>
@@ -269,28 +274,22 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
                     {/* Top badges */}
                     <div className="absolute top-4 left-4 right-4 flex items-start justify-between">
                       <div>
-                        {index === 0 && !isUnlocked && (
+                        {index === 0 && unlockedCount === 0 && (
                           <div className="badge-featured px-3 py-1.5 rounded-full text-[10px] flex items-center gap-1.5 mb-2">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                             BESTSELLER
                           </div>
                         )}
-                        {isUnlocked && (
-                          <div className="bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full shadow-sm flex items-center gap-1">
-                            <svg className="w-3 h-3 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            <span className="text-[10px] font-bold text-stone-700 uppercase">PDF</span>
-                          </div>
-                        )}
                       </div>
                       <div>
-                        {isUnlocked ? (
+                        {unlockedCount > 0 ? (
                           <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Owned</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{unlockedCount} Unlocked</span>
                           </div>
                         ) : (
                           <div className="bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-                            <span className="text-[10px] font-bold text-stone-800 uppercase tracking-wider">Ad Supported</span>
+                            <span className="text-[10px] font-bold text-stone-800 uppercase tracking-wider">Locked</span>
                           </div>
                         )}
                       </div>
@@ -330,10 +329,10 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
                     {/* Bottom row */}
                     <div className="flex items-center justify-between">
                       <span className="text-themed-muted text-xs">
-                        {isUnlocked ? `${completedCount} of ${chapterCount} completed` : `${FREE_CHAPTERS} free chapters · ${chapterCount} total`}
+                        {unlockedCount > 0 ? `${completedCount} of ${chapterCount} completed` : `${chapterCount} chapters locked`}
                       </span>
                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider group-hover:gap-3 transition-all duration-300" style={{ color: 'var(--accent)' }}>
-                        <span>{isUnlocked ? (completedCount > 0 ? 'Continue Reading' : 'Start Reading') : 'Preview Free'}</span>
+                        <span>{unlockedCount > 0 ? (completedCount > 0 ? 'Continue Reading' : 'Start Reading') : 'Unlock a Chapter'}</span>
                         <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
@@ -390,12 +389,15 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   Ad Supported
                 </div>
-                <h3 className="text-white font-display text-2xl sm:text-3xl font-medium mb-2">Unlock Any Book by Watching a Short Ad</h3>
+                <h3 className="text-white font-display text-2xl sm:text-3xl font-medium mb-2">Unlock Any Chapter by Watching a Short Ad</h3>
                 <p className="text-stone-400 font-serif italic text-base mb-5">
-                  Enjoy full access to all {books[0].chapters.length} chapters with a quick ad unlock. <span className="text-amber-400/80 not-italic font-sans text-xs font-bold uppercase">No subscription. Always ad supported.</span>
+                  Start reading immediately with a quick rewarded ad. <span className="text-amber-400/80 not-italic font-sans text-xs font-bold uppercase">No subscription. Always free to download.</span>
                 </p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                  <button onClick={() => onUnlock(books[0])} className="bg-gradient-to-r from-amber-400 to-amber-300 text-stone-900 px-8 py-3.5 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl hover:shadow-amber-400/20 transition-all hover:-translate-y-0.5">
+                  <button
+                    onClick={() => books[0]?.chapters[0] && onUnlockChapter(books[0], books[0].chapters[0])}
+                    className="bg-gradient-to-r from-amber-400 to-amber-300 text-stone-900 px-8 py-3.5 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl hover:shadow-amber-400/20 transition-all hover:-translate-y-0.5"
+                  >
                     Watch Ad to Unlock
                   </button>
                   <span className="text-stone-500 text-[10px] uppercase tracking-wider font-bold">Support free reading with ads</span>
@@ -406,20 +408,28 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
         </div>
       )}
 
-      {/* Unlock more books with ads */}
-      {hasUnlocks && unlockedBookIds.length < books.length && (
+      {/* Unlock more chapters with ads */}
+      {hasUnlocks && totalUnlockedChapters < totalChapters && (
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="bg-gradient-to-r from-stone-800 to-stone-900 rounded-3xl p-8 sm:p-10 text-center relative overflow-hidden">
             <div className="absolute inset-0 pointer-events-none"><div className="absolute top-[-50%] right-[-20%] w-[60%] h-[120%] bg-rose-500/10 rounded-full blur-[80px]" /></div>
             <div className="relative z-10">
               <h3 className="text-white font-display text-2xl sm:text-3xl font-medium mb-2">Unlock More Wisdom</h3>
-              <p className="text-stone-400 font-serif italic text-lg mb-6">{books.length - unlockedBookIds.length} more book{books.length - unlockedBookIds.length > 1 ? 's' : ''} waiting for you</p>
+              <p className="text-stone-400 font-serif italic text-lg mb-6">{totalChapters - totalUnlockedChapters} chapters waiting for you</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                {books.filter(b => !unlockedBookIds.includes(b.id)).slice(0, 3).map(b => (
-                  <button key={b.id} onClick={(e) => { e.stopPropagation(); onUnlock(b); }} className="bg-white text-stone-800 px-6 py-3 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-stone-100 transition-all">
-                    Watch Ad for "{b.title.split(' ').slice(0, 3).join(' ')}..."
-                  </button>
-                ))}
+                {books.map(b => {
+                  const lockedChapter = b.chapters.find(ch => !(unlockedChapters[b.id] || []).includes(ch.id));
+                  if (!lockedChapter) return null;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={(e) => { e.stopPropagation(); onUnlockChapter(b, lockedChapter); }}
+                      className="bg-white text-stone-800 px-6 py-3 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-stone-100 transition-all"
+                    >
+                      Unlock "{b.title.split(' ').slice(0, 3).join(' ')}..."
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -476,10 +486,10 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {[
-            { icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', title: 'Full Book Access', desc: 'All 20 chapters per book, beautifully typeset', color: 'rose' },
-            { icon: 'M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', title: 'PDF Download', desc: 'Watermarked PDF for offline reading', color: 'indigo' },
+            { icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', title: 'Chapter Unlocks', desc: 'Unlock each chapter with a short rewarded ad', color: 'rose' },
             { icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', title: 'AI Companion', desc: 'Personal philosophical guide powered by AI', color: 'emerald' },
             { icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', title: 'Reflection Journal', desc: 'Sacred prompts for deep self-discovery', color: 'amber' },
+            { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', title: 'Reading Streaks', desc: 'Track daily progress and earn badges', color: 'indigo' },
           ].map((item, i) => (
             <div key={i} className="bg-themed-card border border-themed rounded-2xl p-6 text-center hover-lift animate-fadeIn" style={{ animationDelay: `${i * 0.1}s` }}>
               <div className={`w-14 h-14 bg-${item.color}-50 rounded-2xl flex items-center justify-center mx-auto mb-4`}>
@@ -609,40 +619,6 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
         </div>
       </div>
 
-      {/* About Author */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="bg-themed-muted rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-[-30%] right-[-20%] w-[50%] h-[80%] bg-amber-100/20 rounded-full blur-[80px]" />
-          </div>
-          <div className="relative w-32 h-32 rounded-2xl bg-stone-800 flex items-center justify-center shrink-0 shadow-xl">
-            <span className="text-white text-5xl font-display font-bold">M</span>
-            <div className="absolute -bottom-2 -right-2 bg-amber-400 text-stone-900 w-8 h-8 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-            </div>
-          </div>
-          <div className="relative flex-1 text-center md:text-left">
-            <p className="text-themed-muted text-[10px] uppercase tracking-[0.3em] font-bold mb-2">About the Author</p>
-            <h3 className="font-display text-2xl sm:text-3xl text-themed font-medium mb-3">{AUTHOR}</h3>
-            <p className="text-themed-sub font-serif italic leading-relaxed mb-5 text-lg">
-              A philosopher, author, and personal development guide dedicated to helping people build deeper relationships, discover their purpose, and master their inner world through timeless wisdom.
-            </p>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-              {[
-                { value: '4', label: 'Books Published' },
-                { value: '80', label: 'Chapters Written' },
-                { value: '2,847', label: 'Readers Worldwide' },
-              ].map(s => (
-                <div key={s.label} className="bg-themed-card border border-themed px-4 py-2.5 rounded-xl text-center">
-                  <div className="text-themed font-display font-bold text-lg">{s.value}</div>
-                  <div className="text-themed-muted text-[10px] uppercase tracking-wider font-bold">{s.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Email Capture */}
       <div className="max-w-2xl mx-auto px-6 py-12">
         <EmailCapture variant="card" />
@@ -661,7 +637,7 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, unlockedBookIds,
                 The wisdom you seek is waiting inside these pages. Take the first step today.
               </p>
               <button
-                onClick={() => onUnlock(books[0])}
+                onClick={() => books[0]?.chapters[0] && onUnlockChapter(books[0], books[0].chapters[0])}
                 className="cta-premium text-white px-10 py-4 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl transition-all hover:-translate-y-0.5 inline-flex items-center gap-3"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
