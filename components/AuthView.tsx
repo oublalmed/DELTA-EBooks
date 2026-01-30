@@ -110,8 +110,8 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
               </h1>
               <p className="text-themed-muted text-sm mt-2">
                 {mode === 'login'
-                  ? 'Sign in to access your purchased books'
-                  : 'Join to purchase books and track your reading'
+                  ? 'Sign in to sync your reading progress across devices'
+                  : 'Create an account to save progress and unlock books with ads'
                 }
               </p>
             </div>
@@ -206,13 +206,13 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  One-time payment
+                  Ad supported
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
-                  Lifetime access
+                  No subscription
                 </div>
               </div>
             </div>

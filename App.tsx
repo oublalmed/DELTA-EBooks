@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE } from './types';
+import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
 
@@ -11,7 +11,7 @@ import ReaderView from './components/ReaderView';
 import ChatView from './components/ChatView';
 import AuthView from './components/AuthView';
 import Dashboard from './components/Dashboard';
-import PricingModal from './components/PricingModal';
+import AdUnlockModal from './components/AdUnlockModal';
 import ExpressionSpaceView from './components/ExpressionSpaceView';
 import JourneyCalendarView from './components/JourneyCalendarView';
 import ProfileView from './components/ProfileView';
@@ -27,7 +27,10 @@ const App: React.FC = () => {
 
   // ── Auth state ──
   const [user, setUser] = useState<User | null>(null);
-  const [purchasedBookIds, setPurchasedBookIds] = useState<string[]>([]);
+  const [adUnlockedBookIds, setAdUnlockedBookIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('delta_ad_unlocks');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -50,10 +53,9 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : { books: {} };
   });
 
-  // ── Pricing modal ──
-  const [showPricing, setShowPricing] = useState(false);
-  const [pricingTargetBook, setPricingTargetBook] = useState<Book | null>(null);
-  const [isBundleMode, setIsBundleMode] = useState(false);
+  // ── Ad unlock modal ──
+  const [showAdUnlock, setShowAdUnlock] = useState(false);
+  const [adTargetBook, setAdTargetBook] = useState<Book | null>(null);
 
   // ── Reading streak ──
   const [streak, setStreak] = useState<ReadingStreak>(() => {
@@ -87,6 +89,11 @@ const App: React.FC = () => {
     localStorage.setItem('delta_streak', JSON.stringify(streak));
   }, [streak]);
 
+  // ── Ad unlock persistence ──
+  useEffect(() => {
+    localStorage.setItem('delta_ad_unlocks', JSON.stringify(adUnlockedBookIds));
+  }, [adUnlockedBookIds]);
+
   const updateStreak = useCallback(() => {
     const today = new Date().toISOString().split('T')[0];
     setStreak(prev => {
@@ -119,7 +126,6 @@ const App: React.FC = () => {
       api.getProfile()
         .then(data => {
           setUser(data.user);
-          setPurchasedBookIds(data.purchases);
         })
         .catch(() => {
           localStorage.removeItem('delta_token');
@@ -136,9 +142,6 @@ const App: React.FC = () => {
     const data = await api.login(email, password);
     localStorage.setItem('delta_token', data.token);
     setUser(data.user);
-    // Load purchases
-    const profile = await api.getProfile();
-    setPurchasedBookIds(profile.purchases);
     setView('shelf');
   }, []);
 
@@ -147,36 +150,34 @@ const App: React.FC = () => {
     const data = await api.register(email, password, name);
     localStorage.setItem('delta_token', data.token);
     setUser(data.user);
-    setPurchasedBookIds([]);
     setView('shelf');
   }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('delta_token');
     setUser(null);
-    setPurchasedBookIds([]);
     setView('shelf');
   }, []);
 
   // ── Content access ──
-  const isBookPurchased = useCallback((bookId: string) => {
-    return purchasedBookIds.includes(bookId);
-  }, [purchasedBookIds]);
+  const isBookUnlocked = useCallback((bookId: string) => {
+    return adUnlockedBookIds.includes(bookId);
+  }, [adUnlockedBookIds]);
 
   const isChapterAccessible = useCallback((bookId: string, chapterId: number) => {
-    if (isBookPurchased(bookId)) return true;
+    if (isBookUnlocked(bookId)) return true;
     return chapterId <= FREE_CHAPTERS;
-  }, [isBookPurchased]);
+  }, [isBookUnlocked]);
 
   const isChapterPartial = useCallback((bookId: string, chapterId: number) => {
-    if (isBookPurchased(bookId)) return false;
+    if (isBookUnlocked(bookId)) return false;
     return chapterId === 3; // Chapter 3 is partially visible
-  }, [isBookPurchased]);
+  }, [isBookUnlocked]);
 
   const isChapterTeaser = useCallback((bookId: string, chapterId: number) => {
-    if (isBookPurchased(bookId)) return false;
+    if (isBookUnlocked(bookId)) return false;
     return chapterId === 4; // Chapter 4 is a teaser
-  }, [isBookPurchased]);
+  }, [isBookUnlocked]);
 
   // ── Navigation handlers ──
   const selectBook = useCallback((book: Book) => {
@@ -194,9 +195,9 @@ const App: React.FC = () => {
     if (!currentBook) return;
 
     if (!isChapterAccessible(currentBook.id, chapter.id)) {
-      // Locked chapter — show pricing
-      setPricingTargetBook(currentBook);
-      setShowPricing(true);
+      // Locked chapter — show ad unlock
+      setAdTargetBook(currentBook);
+      setShowAdUnlock(true);
       return;
     }
 
@@ -209,7 +210,7 @@ const App: React.FC = () => {
         ...chapter,
         content: words.slice(0, cutPoint).join(' '),
         isPartial: true,
-        accessMessage: 'This chapter continues... Purchase the book to read the full content.',
+        accessMessage: 'This chapter continues... Watch a short ad to unlock the full content.',
       };
     } else if (isChapterTeaser(currentBook.id, chapter.id)) {
       const words = chapter.content.split(' ');
@@ -219,7 +220,7 @@ const App: React.FC = () => {
         content: words.slice(0, cutPoint).join(' '),
         isTeaser: true,
         isPartial: true,
-        accessMessage: 'The story continues with a powerful revelation... Purchase the book to discover what comes next.',
+        accessMessage: 'The story continues with a powerful revelation... Watch a short ad to discover what comes next.',
       };
     }
 
@@ -229,29 +230,17 @@ const App: React.FC = () => {
     updateStreak(); // Track reading streak
   }, [currentBook, isChapterAccessible, isChapterPartial, isChapterTeaser, updateStreak]);
 
-  const handleOpenPricing = useCallback((book?: Book) => {
-    if (!user) {
-      setView('auth');
-      return;
-    }
-    setIsBundleMode(false);
-    setPricingTargetBook(book || currentBook);
-    setShowPricing(true);
-  }, [user, currentBook]);
+  const handleOpenAdUnlock = useCallback((book?: Book) => {
+    const target = book || currentBook;
+    if (!target || isBookUnlocked(target.id)) return;
+    setAdTargetBook(target);
+    setShowAdUnlock(true);
+  }, [currentBook, isBookUnlocked]);
 
-  const handleOpenBundle = useCallback(() => {
-    if (!user) {
-      setView('auth');
-      return;
-    }
-    setIsBundleMode(true);
-    setPricingTargetBook(null);
-    setShowPricing(true);
-  }, [user]);
-
-  const handlePurchaseComplete = useCallback((bookId: string) => {
-    setPurchasedBookIds(prev => [...new Set([...prev, bookId])]);
-    setShowPricing(false);
+  const handleAdUnlockComplete = useCallback((bookId: string) => {
+    setAdUnlockedBookIds(prev => [...new Set([...prev, bookId])]);
+    setShowAdUnlock(false);
+    setAdTargetBook(null);
   }, []);
 
   const handleUpdateUser = useCallback(async (name: string) => {
@@ -336,11 +325,13 @@ const App: React.FC = () => {
           <Dashboard
             user={user!}
             books={BOOKS}
-            purchasedBookIds={purchasedBookIds}
+            unlockedBookIds={adUnlockedBookIds}
+            progress={progress}
             onSelectBook={selectBook}
             onBack={() => setView('shelf')}
             onLogout={handleLogout}
             onOpenProfile={handleOpenProfile}
+            onUnlock={handleOpenAdUnlock}
           />
         );
 
@@ -360,13 +351,12 @@ const App: React.FC = () => {
           <ShelfView
             books={BOOKS}
             progress={progress}
-            purchasedBookIds={purchasedBookIds}
+            unlockedBookIds={adUnlockedBookIds}
             user={user}
             theme={theme}
             streak={streak}
             onSelect={selectBook}
-            onOpenPricing={handleOpenPricing}
-            onOpenBundle={handleOpenBundle}
+            onUnlock={handleOpenAdUnlock}
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
@@ -394,12 +384,12 @@ const App: React.FC = () => {
           <LibraryView
             book={currentBook!}
             completedIds={currentBookProgress.completedIds}
-            isBookPurchased={isBookPurchased(currentBook!.id)}
+            isBookUnlocked={isBookUnlocked(currentBook!.id)}
             freeChapters={FREE_CHAPTERS}
             onSelect={handleSelectChapter}
             onChat={() => setView('chat')}
             onBack={() => setView('shelf')}
-            onUnlock={() => handleOpenPricing(currentBook!)}
+            onUnlock={() => handleOpenAdUnlock(currentBook!)}
           />
         );
 
@@ -410,7 +400,6 @@ const App: React.FC = () => {
             chapter={currentChapter!}
             isCompleted={currentBookProgress.completedIds.includes(currentChapter!.id)}
             savedReflection={currentBookProgress.reflections[currentChapter!.id] || ''}
-            isBookPurchased={isBookPurchased(currentBook!.id)}
             theme={theme}
             fontSize={fontSize}
             language={language}
@@ -420,13 +409,13 @@ const App: React.FC = () => {
             onToggleTheme={cycleTheme}
             onSetFontSize={setFontSize}
             onUpdateLanguage={handleUpdateLanguage}
-            onUnlock={() => handleOpenPricing(currentBook!)}
+            onUnlock={() => handleOpenAdUnlock(currentBook!)}
             onNext={(id) => {
               const next = currentBook!.chapters.find(c => c.id === id);
               if (next) {
                 if (!isChapterAccessible(currentBook!.id, next.id)) {
-                  setPricingTargetBook(currentBook);
-                  setShowPricing(true);
+                  setAdTargetBook(currentBook);
+                  setShowAdUnlock(true);
                   return;
                 }
                 handleSelectChapter(next);
@@ -455,7 +444,7 @@ const App: React.FC = () => {
         );
 
       default:
-        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => {
+        return <ShelfView books={BOOKS} progress={progress} unlockedBookIds={adUnlockedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onUnlock={handleOpenAdUnlock} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => {
           if (!user) {
             setView('auth');
             return;
@@ -490,17 +479,12 @@ const App: React.FC = () => {
         {renderView()}
       </div>
 
-      {showPricing && (pricingTargetBook || isBundleMode) && (
-        <PricingModal
-          isOpen={showPricing}
-          onClose={() => { setShowPricing(false); setIsBundleMode(false); }}
-          targetBook={pricingTargetBook}
-          user={user}
-          isBundleMode={isBundleMode}
-          allBooks={BOOKS}
-          purchasedBookIds={purchasedBookIds}
-          onPurchaseComplete={handlePurchaseComplete}
-          onOpenAuth={() => { setShowPricing(false); setView('auth'); }}
+      {showAdUnlock && adTargetBook && (
+        <AdUnlockModal
+          isOpen={showAdUnlock}
+          bookTitle={adTargetBook.title}
+          onClose={() => { setShowAdUnlock(false); setAdTargetBook(null); }}
+          onUnlock={() => handleAdUnlockComplete(adTargetBook.id)}
         />
       )}
     </div>

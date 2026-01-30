@@ -116,42 +116,6 @@ export async function getBook(bookId: string) {
   return request<any>(`/books/${bookId}`);
 }
 
-// ── Payments ──
-
-export async function createPaymentOrder(bookId: string) {
-  return request<{ orderId: string; status: string }>('/payments/create-order', {
-    method: 'POST',
-    body: JSON.stringify({ bookId }),
-  });
-}
-
-export async function capturePaymentOrder(orderId: string, bookId: string) {
-  return request<{ success: boolean; message: string; bookId: string }>('/payments/capture-order', {
-    method: 'POST',
-    body: JSON.stringify({ orderId, bookId }),
-  });
-}
-
-export async function getPaymentHistory() {
-  return request<any[]>('/payments/history');
-}
-
-// ── Downloads ──
-
-export async function generateDownloadToken(bookId: string) {
-  return request<{ downloadUrl: string; expiresAt: string; downloadsRemaining: number }>(
-    '/downloads/generate-token',
-    {
-      method: 'POST',
-      body: JSON.stringify({ bookId }),
-    }
-  );
-}
-
-export async function getDownloadHistory() {
-  return request<{ history: any[]; downloadInfo: any[] }>('/downloads/user/history');
-}
-
 // ── Email ──
 
 export async function subscribe(email: string) {

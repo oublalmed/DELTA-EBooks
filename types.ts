@@ -70,7 +70,7 @@ export interface User {
 export interface AuthState {
   user: User | null;
   token: string | null;
-  purchasedBookIds: string[];
+  unlockedBookIds: string[];
   isLoading: boolean;
 }
 
@@ -94,23 +94,6 @@ export interface UserProgress {
 
 // ── Purchases & Downloads ──
 
-export interface PurchaseRecord {
-  id: number;
-  book_id: string;
-  book_title: string;
-  cover_image?: string;
-  amount: number;
-  currency: string;
-  status: string;
-  purchased_at: string;
-}
-
-export interface DownloadInfo {
-  bookId: string;
-  downloadsUsed: number;
-  downloadsRemaining: number;
-  maxDownloads: number;
-}
 
 // ── Reader Settings ──
 
@@ -132,6 +115,3 @@ export interface ReadingStreak {
 // ── Constants ──
 
 export const FREE_CHAPTERS = 4;
-export const PRICE_PER_BOOK = 9.99;
-export const BUNDLE_PRICE = 29.99;
-export const BUNDLE_SAVINGS = +(PRICE_PER_BOOK * 4 - BUNDLE_PRICE).toFixed(2);
