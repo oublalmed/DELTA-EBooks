@@ -65,12 +65,13 @@ export interface User {
   email: string;
   name: string;
   created_at: string;
+  email_verified?: number;
 }
 
 export interface AuthState {
   user: User | null;
   token: string | null;
-  unlockedBookIds: string[];
+  unlockedChapters: Record<string, number[]>;
   isLoading: boolean;
 }
 
@@ -114,4 +115,3 @@ export interface ReadingStreak {
 
 // ── Constants ──
 
-export const FREE_CHAPTERS = 4;

@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
-import { User, Book, UserProgress } from '../types';
-import AdBanner from './AdBanner';
+import { User, Book, Chapter, UserProgress } from '../types';
 
 interface DashboardProps {
   user: User;
   books: Book[];
-  unlockedBookIds: string[];
+  unlockedChapters: Record<string, number[]>;
   progress: UserProgress;
   onSelectBook: (book: Book) => void;
   onBack: () => void;
   onLogout: () => void;
   onOpenProfile: () => void;
-  onUnlock: (book: Book) => void;
+  onUnlockChapter: (book: Book, chapter: Chapter) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, progress, onSelectBook, onBack, onLogout, onOpenProfile, onUnlock }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedChapters, progress, onSelectBook, onBack, onLogout, onOpenProfile, onUnlockChapter }) => {
   const [tab, setTab] = useState<'library' | 'account'>('library');
-  const unlockedSet = new Set(unlockedBookIds);
+  const totalUnlockedChapters = Object.values(unlockedChapters).reduce((sum, chapters) => sum + chapters.length, 0);
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const completedChapters = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
@@ -68,11 +67,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
         {tab === 'library' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                { label: 'Books Unlocked', value: unlockedBookIds.length },
-                { label: 'Chapters Read', value: completedChapters },
-                { label: 'Total Chapters', value: totalChapters },
-              ].map(stat => (
+                {[
+                  { label: 'Chapters Unlocked', value: totalUnlockedChapters },
+                  { label: 'Chapters Read', value: completedChapters },
+                  { label: 'Total Chapters', value: totalChapters },
+                ].map(stat => (
                 <div key={stat.label} className="bg-themed-card border border-themed rounded-2xl p-5 text-center">
                   <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold">{stat.label}</p>
                   <p className="text-2xl font-display font-bold text-themed mt-2">{stat.value}</p>
@@ -80,14 +79,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
               ))}
             </div>
 
-            <AdBanner placement="dashboard-library" variant="banner" />
-
             <div className="space-y-4">
               {books.map(book => {
                 const bp = progress.books[book.id];
                 const completed = bp ? bp.completedIds.length : 0;
                 const percent = book.chapters.length > 0 ? Math.round((completed / book.chapters.length) * 100) : 0;
-                const isUnlocked = unlockedSet.has(book.id);
+                const unlockedCount = unlockedChapters[book.id]?.length || 0;
 
                 return (
                   <div key={book.id} className="bg-themed-card rounded-2xl border border-themed overflow-hidden">
@@ -96,9 +93,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
                       <div className="flex-1 p-5">
                         <div className="flex items-center gap-2 mb-2">
                           <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            isUnlocked ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                            unlockedCount > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                           }`}>
-                            {isUnlocked ? 'Unlocked' : 'Ad Supported'}
+                            {unlockedCount > 0 ? `${unlockedCount} Unlocked` : 'Locked'}
                           </span>
                           <span className="text-themed-muted text-[9px] font-bold uppercase tracking-wider">{completed}/{book.chapters.length} chapters</span>
                         </div>
@@ -116,12 +113,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
                           >
                             Read
                           </button>
-                          {!isUnlocked && (
+                          {unlockedCount < book.chapters.length && (
                             <button
-                              onClick={() => onUnlock(book)}
+                              onClick={() => {
+                                const nextChapter = book.chapters.find(ch => !(unlockedChapters[book.id] || []).includes(ch.id));
+                                if (nextChapter) onUnlockChapter(book, nextChapter);
+                              }}
                               className="bg-themed-muted text-themed-sub px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-themed border border-themed transition-all"
                             >
-                              Watch Ad to Unlock
+                              Unlock Next Chapter
                             </button>
                           )}
                         </div>
@@ -150,8 +150,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
                 <p className="text-themed font-medium mt-1">{new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
               </div>
               <div>
-                <label className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Books Unlocked</label>
-                <p className="text-themed font-medium mt-1">{unlockedBookIds.length} book{unlockedBookIds.length !== 1 ? 's' : ''}</p>
+                <label className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Chapters Unlocked</label>
+                <p className="text-themed font-medium mt-1">{totalUnlockedChapters} chapter{totalUnlockedChapters !== 1 ? 's' : ''}</p>
               </div>
               <button
                 onClick={onOpenProfile}
@@ -159,9 +159,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedBookIds, pro
               >
                 Edit Profile
               </button>
-            </div>
-            <div className="mt-6">
-              <AdBanner placement="dashboard-account" variant="banner" />
             </div>
           </div>
         )}

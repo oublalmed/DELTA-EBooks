@@ -3,7 +3,10 @@ import AdBanner from './AdBanner';
 
 interface AdUnlockModalProps {
   isOpen: boolean;
-  bookTitle: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  placement?: string;
   onClose: () => void;
   onUnlock: () => void;
   countdownSeconds?: number;
@@ -11,7 +14,16 @@ interface AdUnlockModalProps {
 
 const DEFAULT_COUNTDOWN_SECONDS = 5;
 
-const AdUnlockModal: React.FC<AdUnlockModalProps> = ({ isOpen, bookTitle, onClose, onUnlock, countdownSeconds = DEFAULT_COUNTDOWN_SECONDS }) => {
+const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
+  isOpen,
+  title,
+  description,
+  confirmLabel,
+  placement = 'rewarded-unlock',
+  onClose,
+  onUnlock,
+  countdownSeconds = DEFAULT_COUNTDOWN_SECONDS,
+}) => {
   const [secondsLeft, setSecondsLeft] = useState(countdownSeconds);
   const [isReady, setIsReady] = useState(false);
 
@@ -50,10 +62,10 @@ const AdUnlockModal: React.FC<AdUnlockModalProps> = ({ isOpen, bookTitle, onClos
           </svg>
         </div>
 
-        <h2 className="font-display text-2xl text-themed font-medium mb-2">Watch an Ad to Unlock</h2>
-        <p className="text-themed-sub text-sm mb-6">Unlock <span className="font-semibold text-themed">"{bookTitle}"</span> after a short ad.</p>
+        <h2 className="font-display text-2xl text-themed font-medium mb-2">{title}</h2>
+        <p className="text-themed-sub text-sm mb-6">{description}</p>
 
-        <AdBanner placement="unlock-modal" variant="medium" />
+        <AdBanner placement={placement} variant="medium" />
 
         <div className="mt-6">
           <button
@@ -61,10 +73,10 @@ const AdUnlockModal: React.FC<AdUnlockModalProps> = ({ isOpen, bookTitle, onClos
             disabled={!isReady}
             className="w-full py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all disabled:opacity-50 bg-stone-800 text-white hover:bg-stone-700"
           >
-            {isReady ? 'Continue Reading' : `Please wait ${secondsLeft}s`}
+            {isReady ? confirmLabel : `Please wait ${secondsLeft}s`}
           </button>
           <p className="text-themed-muted text-[10px] mt-3 uppercase tracking-wider font-bold">
-            Ad supports free reading for everyone
+            Rewarded ads unlock full access
           </p>
         </div>
       </div>
