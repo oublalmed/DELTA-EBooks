@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { Chapter, Book, FREE_CHAPTERS, PRICE_PER_BOOK } from '../types';
+import { Chapter, Book } from '../types';
+import AdBanner from './AdBanner';
 
 interface LibraryViewProps {
   book: Book;
   completedIds: number[];
-  isBookPurchased: boolean;
+  isBookUnlocked: boolean;
   freeChapters: number;
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
@@ -20,7 +21,7 @@ const accentMap: Record<string, { bg: string; text: string; badge: string; borde
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-500', border: 'border-emerald-200' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPurchased, freeChapters, onSelect, onChat, onBack, onUnlock }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookUnlocked, freeChapters, onSelect, onChat, onBack, onUnlock }) => {
   const [search, setSearch] = useState('');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const progress = book.chapters.length > 0 ? Math.round((completedIds.length / book.chapters.length) * 100) : 0;
@@ -31,7 +32,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
   );
 
   const getChapterStatus = (chapter: Chapter) => {
-    if (isBookPurchased) return 'accessible';
+    if (isBookUnlocked) return 'accessible';
     if (chapter.id <= 2) return 'free';
     if (chapter.id === 3) return 'partial';
     if (chapter.id === 4) return 'teaser';
@@ -67,14 +68,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
         <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
-              {isBookPurchased ? (
+              {isBookUnlocked ? (
                 <span className="bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                  Full Access
+                  Unlocked
                 </span>
               ) : (
                 <span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                  {freeChapters} Free Chapters
+                  {freeChapters} Preview Chapters
                 </span>
               )}
             </div>
@@ -114,17 +115,19 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
         </div>
 
         {/* Unlock banner */}
-        {!isBookPurchased && (
+        {!isBookUnlocked && (
           <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <h3 className="text-white font-display text-lg font-medium">Unlock All {book.chapters.length} Chapters</h3>
-              <p className="text-stone-400 text-sm">One-time payment &middot; Lifetime access &middot; PDF download included</p>
+              <p className="text-stone-400 text-sm">Watch a short ad to unlock full access to this book.</p>
             </div>
             <button onClick={onUnlock} className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap">
-              Buy for ${PRICE_PER_BOOK}
+              Watch Ad to Unlock
             </button>
           </div>
         )}
+
+        <AdBanner placement="library-mid" variant="banner" />
 
         {/* Chapters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -165,7 +168,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
                       {status === 'locked' && (
                         <span className="bg-stone-700 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
                           <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
-                          Locked
+                          Ad Locked
                         </span>
                       )}
                     </div>

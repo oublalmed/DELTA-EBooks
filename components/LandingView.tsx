@@ -144,7 +144,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             {[
               { value: totalBooks, label: 'Books' },
               { value: totalChapters, label: 'Chapters' },
-              { value: `${FREE_CHAPTERS}`, label: 'Free / Book' },
+              { value: `${FREE_CHAPTERS}`, label: 'Free Preview' },
               { value: '2,847+', label: 'Readers' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
@@ -183,7 +183,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
             </svg>
-            No sign-up required — Start your journey now
+            No sign-up required — Ad-supported reading
           </div>
         </div>
       </div>
