@@ -41,7 +41,7 @@ async function request<T>(
 // ── Auth ──
 
 export async function register(email: string, password: string, name: string) {
-  return request<{ user: any; token?: string; verificationRequired?: boolean; verificationHint?: string; devVerificationCode?: string }>('/auth/register', {
+  return request<{ user: any; token: string }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email, password, name }),
   });
@@ -51,20 +51,6 @@ export async function login(email: string, password: string) {
   return request<{ user: any; token: string }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
-  });
-}
-
-export async function verifyEmail(email: string, code: string) {
-  return request<{ success: boolean }>('/auth/verify-email', {
-    method: 'POST',
-    body: JSON.stringify({ email, code }),
-  });
-}
-
-export async function resendVerification(email: string) {
-  return request<{ success: boolean; devVerificationCode?: string }>('/auth/resend-verification', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
   });
 }
 

@@ -218,17 +218,11 @@ const App: React.FC = () => {
 
   const handleRegister = useCallback(async (email: string, password: string, name: string) => {
     setAuthError(null);
-    return api.register(email, password, name);
-  }, []);
-
-  const handleVerifyEmail = useCallback(async (email: string, code: string) => {
-    setAuthError(null);
-    return api.verifyEmail(email, code);
-  }, []);
-
-  const handleResendVerification = useCallback(async (email: string) => {
-    setAuthError(null);
-    return api.resendVerification(email);
+    const data = await api.register(email, password, name);
+    localStorage.setItem('delta_token', data.token);
+    setUser(data.user);
+    setView('shelf');
+    return data;
   }, []);
 
   const handleForgotPassword = useCallback(async (email: string) => {
@@ -456,8 +450,6 @@ const App: React.FC = () => {
           <AuthView
             onLogin={handleLogin}
             onRegister={handleRegister}
-            onVerifyEmail={handleVerifyEmail}
-            onResendVerification={handleResendVerification}
             onForgotPassword={handleForgotPassword}
             onResetPassword={handleResetPassword}
             onGoogleSignIn={handleGoogleSignIn}
