@@ -2,6 +2,19 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Rate limiting middleware
+import { 
+  generalLimiter, 
+  authLimiter, 
+  passwordResetLimiter, 
+  adminLimiter, 
+  aiLimiter 
+} from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/auth.js';
 import bookRoutes from './routes/books.js';
@@ -41,22 +54,25 @@ app.use((req, _res, next) => {
   next();
 });
 
-// ── API Routes ──
-app.use('/api/auth', authRoutes);
+// ── Apply general rate limiting to all API routes ──
+app.use('/api/', generalLimiter);
+
+// ── API Routes with specific rate limiters ──
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/expression', expressionRoutes);
-app.use('/api/journey', journeyRoutes);
+app.use('/api/journey', journalRoutes);
 // NEW: Enhanced journal and premium routes
 app.use('/api/journal', journalRoutes);
 app.use('/api/premium', premiumRoutes);
 // NEW: Unlock routes (chapters, journal access, PDF downloads)
 app.use('/api/unlocks', unlockRoutes);
 // NEW: Admin dashboard routes (PROTECTED - requires admin role)
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminLimiter, adminRoutes);
 // Client-facing routes (messaging, ideas)
 app.use('/api/client', clientRoutes);
-// AI generation routes (admin only)
-app.use('/api/admin/ai', aiGenerateRoutes);
+// AI generation routes (admin only) - with AI rate limiter
+app.use('/api/admin/ai', aiLimiter, aiGenerateRoutes);
 // User progress routes (chapter reflections)
 app.use('/api/progress', progressRoutes);
 

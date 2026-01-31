@@ -25,8 +25,15 @@ dist-ssr
 
 # Environment
 .env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
 
 # Database
 *.sqlite
 *.sqlite3
 server/delta_ebooks.db
+server/*.db
+server/*.db-shm
+server/*.db-wal

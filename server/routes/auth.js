@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import db from '../db.js';
 import { generateToken, generateRefreshToken, requireAuth, verifyRefreshToken } from '../middleware/auth.js';
+import { passwordResetLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -161,8 +162,9 @@ router.patch('/me', requireAuth, (req, res) => {
 /**
  * POST /api/auth/forgot-password
  * Request a password reset token
+ * Rate limited: 3 attempts per hour
  */
-router.post('/forgot-password', (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, (req, res) => {
   try {
     const { email } = req.body;
 
