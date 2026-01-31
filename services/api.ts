@@ -30,7 +30,9 @@ async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(body.error || `HTTP ${res.status}`);
+    const error = new Error(body.error || `HTTP ${res.status}`);
+    (error as Error & { code?: string }).code = body.code;
+    throw error;
   }
 
   return res.json();
@@ -52,13 +54,29 @@ export async function login(email: string, password: string) {
   });
 }
 
+export async function requestPasswordReset(email: string) {
+  return request<{ success: boolean; devResetToken?: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(email: string, token: string, newPassword: string) {
+  return request<{ success: boolean }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, token, password: newPassword }),
+  });
+}
+
+export async function googleSignIn(credential: string) {
+  return request<{ user: any; token: string }>('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  });
+}
+
 export async function getProfile() {
-  return request<{
-    user: any;
-    purchases: string[];
-    purchaseDetails: any[];
-    downloadCount: number;
-  }>('/auth/me');
+  return request<{ user: any }>('/auth/me');
 }
 
 export async function updateProfile(data: { name?: string; language?: string }) {
@@ -114,42 +132,6 @@ export async function getBooks() {
 
 export async function getBook(bookId: string) {
   return request<any>(`/books/${bookId}`);
-}
-
-// ── Payments ──
-
-export async function createPaymentOrder(bookId: string) {
-  return request<{ orderId: string; status: string }>('/payments/create-order', {
-    method: 'POST',
-    body: JSON.stringify({ bookId }),
-  });
-}
-
-export async function capturePaymentOrder(orderId: string, bookId: string) {
-  return request<{ success: boolean; message: string; bookId: string }>('/payments/capture-order', {
-    method: 'POST',
-    body: JSON.stringify({ orderId, bookId }),
-  });
-}
-
-export async function getPaymentHistory() {
-  return request<any[]>('/payments/history');
-}
-
-// ── Downloads ──
-
-export async function generateDownloadToken(bookId: string) {
-  return request<{ downloadUrl: string; expiresAt: string; downloadsRemaining: number }>(
-    '/downloads/generate-token',
-    {
-      method: 'POST',
-      body: JSON.stringify({ bookId }),
-    }
-  );
-}
-
-export async function getDownloadHistory() {
-  return request<{ history: any[]; downloadInfo: any[] }>('/downloads/user/history');
 }
 
 // ── Email ──

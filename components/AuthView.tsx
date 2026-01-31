@@ -1,34 +1,107 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 interface AuthViewProps {
-  onLogin: (email: string, password: string) => Promise<void>;
-  onRegister: (email: string, password: string, name: string) => Promise<void>;
+  onLogin: (email: string, password: string) => Promise<any>;
+  onRegister: (email: string, password: string, name: string) => Promise<any>;
+  onForgotPassword: (email: string) => Promise<{ devResetToken?: string }>;
+  onResetPassword: (email: string, token: string, password: string) => Promise<void>;
+  onGoogleSignIn: (credential: string) => Promise<any>;
   onBack: () => void;
   error: string | null;
 }
 
-const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+const AuthView: React.FC<AuthViewProps> = ({
+  onLogin,
+  onRegister,
+  onForgotPassword,
+  onResetPassword,
+  onGoogleSignIn,
+  onBack,
+  error
+}) => {
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [devHint, setDevHint] = useState<string | null>(null);
+  const [googleReady, setGoogleReady] = useState(false);
+
+  useEffect(() => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!googleClientId) return;
+
+    const initializeGoogle = () => {
+      if (!window.google?.accounts?.id) return false;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response: any) => {
+          try {
+            setLocalError(null);
+            setInfoMessage(null);
+            await onGoogleSignIn(response.credential);
+          } catch (err: any) {
+            setLocalError(err.message || 'Google sign-in failed');
+          }
+        },
+      });
+      setGoogleReady(true);
+      return true;
+    };
+
+    if (initializeGoogle()) return;
+    const interval = window.setInterval(() => {
+      if (initializeGoogle()) {
+        window.clearInterval(interval);
+      }
+    }, 300);
+    return () => window.clearInterval(interval);
+  }, [onGoogleSignIn]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setInfoMessage(null);
+    setDevHint(null);
     setLoading(true);
     try {
       if (mode === 'login') {
         await onLogin(email, password);
-      } else {
+      } else if (mode === 'register') {
         if (password.length < 6) {
           setLocalError('Password must be at least 6 characters');
           setLoading(false);
           return;
         }
         await onRegister(email, password, name);
+      } else if (mode === 'forgot') {
+        const result = await onForgotPassword(email);
+        setInfoMessage('Password reset code sent. Enter it below.');
+        if (result?.devResetToken) {
+          setDevHint(`Dev reset token: ${result.devResetToken}`);
+        }
+        setMode('reset');
+      } else if (mode === 'reset') {
+        if (password.length < 6) {
+          setLocalError('Password must be at least 6 characters');
+          setLoading(false);
+          return;
+        }
+        await onResetPassword(email, resetToken, password);
+        setInfoMessage('Password updated. Please sign in.');
+        setPassword('');
+        setResetToken('');
+        setMode('login');
       }
     } catch (err: any) {
       setLocalError(err.message);
@@ -38,6 +111,24 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
   };
 
   const displayError = localError || error;
+  const titles: Record<typeof mode, string> = {
+    login: 'Welcome Back',
+    register: 'Create Account',
+    forgot: 'Forgot Password',
+    reset: 'Set a New Password',
+  };
+  const subtitles: Record<typeof mode, string> = {
+    login: 'Sign in to sync your reading progress across devices',
+    register: 'Create an account to save progress and unlock books with ads',
+    forgot: 'We will send you a reset code',
+    reset: 'Enter your reset code and new password',
+  };
+  const submitLabels: Record<typeof mode, string> = {
+    login: 'Sign In',
+    register: 'Create Account',
+    forgot: 'Send Reset Code',
+    reset: 'Reset Password',
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -106,13 +197,10 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
                 <span className="text-white text-xl font-display">&#x2726;</span>
               </div>
               <h1 className="text-2xl font-display font-medium text-themed">
-                {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                {titles[mode]}
               </h1>
               <p className="text-themed-muted text-sm mt-2">
-                {mode === 'login'
-                  ? 'Sign in to access your purchased books'
-                  : 'Join to purchase books and track your reading'
-                }
+                {subtitles[mode]}
               </p>
             </div>
 
@@ -120,6 +208,16 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
             {displayError && (
               <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm text-center">
                 {displayError}
+              </div>
+            )}
+            {infoMessage && (
+              <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-sm text-center">
+                {infoMessage}
+              </div>
+            )}
+            {devHint && (
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs text-center">
+                {devHint}
               </div>
             )}
 
@@ -151,18 +249,34 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
                 />
               </div>
 
-              <div>
-                <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'register' ? 'Min. 6 characters' : 'Your password'}
-                  className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
-                  required
-                  minLength={6}
-                />
-              </div>
+              {mode === 'reset' && (
+                <div>
+                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Reset Code</label>
+                  <input
+                    type="text"
+                    value={resetToken}
+                    onChange={(e) => setResetToken(e.target.value)}
+                    placeholder="Paste reset code"
+                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
+                    required
+                  />
+                </div>
+              )}
+
+              {(mode === 'login' || mode === 'register' || mode === 'reset') && (
+                <div>
+                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">{mode === 'reset' ? 'New Password' : 'Password'}</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === 'register' ? 'Min. 6 characters' : mode === 'reset' ? 'Create a new password' : 'Your password'}
+                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -175,22 +289,69 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
                     Processing...
                   </span>
                 ) : (
-                  mode === 'login' ? 'Sign In' : 'Create Account'
+                  submitLabels[mode]
                 )}
               </button>
             </form>
 
+            {mode === 'login' && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => { setMode('forgot'); setLocalError(null); setInfoMessage(null); }}
+                  className="text-xs font-bold uppercase tracking-wider text-themed-muted hover:text-themed"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {(mode === 'login' || mode === 'register') && (
+              <div className="mt-6">
+                <button
+                  onClick={() => window.google?.accounts?.id?.prompt()}
+                  disabled={!googleReady}
+                  className="w-full py-3 rounded-xl border border-themed bg-themed-muted text-themed text-xs font-bold uppercase tracking-wider hover:bg-themed transition-all disabled:opacity-50"
+                >
+                  Continue with Google
+                </button>
+                {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                  <p className="text-themed-muted text-[10px] text-center mt-2">Google Sign-In not configured</p>
+                )}
+              </div>
+            )}
+
             {/* Toggle mode */}
             <div className="mt-6 text-center">
-              <p className="text-themed-muted text-sm">
-                {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
+              {mode === 'login' && (
+                <p className="text-themed-muted text-sm">
+                  Don't have an account?
+                  <button
+                    onClick={() => { setMode('register'); setLocalError(null); setInfoMessage(null); }}
+                    className="ml-1 font-bold text-themed hover:underline"
+                  >
+                    Sign Up
+                  </button>
+                </p>
+              )}
+              {mode === 'register' && (
+                <p className="text-themed-muted text-sm">
+                  Already have an account?
+                  <button
+                    onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); }}
+                    className="ml-1 font-bold text-themed hover:underline"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              )}
+              {(mode === 'forgot' || mode === 'reset') && (
                 <button
-                  onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setLocalError(null); }}
-                  className="ml-1 font-bold text-themed hover:underline"
+                  onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); }}
+                  className="text-sm font-bold text-themed hover:underline"
                 >
-                  {mode === 'login' ? 'Sign Up' : 'Sign In'}
+                  Back to Sign In
                 </button>
-              </p>
+              )}
             </div>
 
             {/* Trust badges */}
@@ -206,13 +367,13 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onRegister, onBack, error 
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  One-time payment
+                  Ad supported
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
-                  Lifetime access
+                  No subscription
                 </div>
               </div>
             </div>

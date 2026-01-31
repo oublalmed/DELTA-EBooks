@@ -5,9 +5,7 @@ import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.js';
 import bookRoutes from './routes/books.js';
-import paymentRoutes from './routes/payments.js';
-import downloadRoutes from './routes/downloads.js';
-import webhookRoutes from './routes/webhooks.js';
+// Payments/downloads/webhooks removed for ad-supported model
 import expressionRoutes from './routes/expression.js';
 import journeyRoutes from './routes/journey.js';
 // NEW: Enhanced journal and premium routes
@@ -30,14 +28,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// Raw body for webhook signature verification
-app.use('/api/webhooks', express.raw({ type: 'application/json' }), (req, _res, next) => {
-  if (Buffer.isBuffer(req.body)) {
-    req.body = JSON.parse(req.body.toString());
-  }
-  next();
-});
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -52,9 +42,6 @@ app.use((req, _res, next) => {
 // ── API Routes ──
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/downloads', downloadRoutes);
-app.use('/api/webhooks', webhookRoutes);
 app.use('/api/expression', expressionRoutes);
 app.use('/api/journey', journeyRoutes);
 // NEW: Enhanced journal and premium routes

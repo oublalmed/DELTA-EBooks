@@ -540,4 +540,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_analytics_date ON daily_analytics(date);
 `);
 
+// ── Safe column migrations ──
+const safeAddColumn = (sql) => {
+  try {
+    db.exec(sql);
+  } catch {
+    // Column likely already exists
+  }
+};
+
+safeAddColumn(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN email_verification_token TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN email_verification_expires TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN password_reset_token TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN password_reset_expires TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN google_id TEXT;`);
+
 export default db;
