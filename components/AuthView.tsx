@@ -10,8 +10,6 @@ declare global {
 interface AuthViewProps {
   onLogin: (email: string, password: string) => Promise<any>;
   onRegister: (email: string, password: string, name: string) => Promise<any>;
-  onVerifyEmail: (email: string, code: string) => Promise<void>;
-  onResendVerification: (email: string) => Promise<{ devVerificationCode?: string }>;
   onForgotPassword: (email: string) => Promise<{ devResetToken?: string }>;
   onResetPassword: (email: string, token: string, password: string) => Promise<void>;
   onGoogleSignIn: (credential: string) => Promise<any>;
@@ -22,19 +20,16 @@ interface AuthViewProps {
 const AuthView: React.FC<AuthViewProps> = ({
   onLogin,
   onRegister,
-  onVerifyEmail,
-  onResendVerification,
   onForgotPassword,
   onResetPassword,
   onGoogleSignIn,
   onBack,
   error
 }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'verify' | 'forgot' | 'reset'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -88,19 +83,7 @@ const AuthView: React.FC<AuthViewProps> = ({
           setLoading(false);
           return;
         }
-        const result = await onRegister(email, password, name);
-        if (result?.verificationRequired) {
-          setMode('verify');
-          setInfoMessage('We sent a verification code to your email.');
-          if (result.devVerificationCode) {
-            setDevHint(`Dev code: ${result.devVerificationCode}`);
-          }
-        }
-      } else if (mode === 'verify') {
-        await onVerifyEmail(email, verificationCode);
-        setInfoMessage('Email verified. Please sign in.');
-        setMode('login');
-        setVerificationCode('');
+        await onRegister(email, password, name);
       } else if (mode === 'forgot') {
         const result = await onForgotPassword(email);
         setInfoMessage('Password reset code sent. Enter it below.');
@@ -121,12 +104,7 @@ const AuthView: React.FC<AuthViewProps> = ({
         setMode('login');
       }
     } catch (err: any) {
-      if (err.code === 'EMAIL_NOT_VERIFIED') {
-        setMode('verify');
-        setInfoMessage('Please verify your email to continue.');
-      } else {
-        setLocalError(err.message);
-      }
+      setLocalError(err.message);
     } finally {
       setLoading(false);
     }
@@ -136,21 +114,18 @@ const AuthView: React.FC<AuthViewProps> = ({
   const titles: Record<typeof mode, string> = {
     login: 'Welcome Back',
     register: 'Create Account',
-    verify: 'Verify Your Email',
     forgot: 'Forgot Password',
     reset: 'Set a New Password',
   };
   const subtitles: Record<typeof mode, string> = {
     login: 'Sign in to sync your reading progress across devices',
     register: 'Create an account to save progress and unlock books with ads',
-    verify: 'Enter the verification code sent to your email',
     forgot: 'We will send you a reset code',
     reset: 'Enter your reset code and new password',
   };
   const submitLabels: Record<typeof mode, string> = {
     login: 'Sign In',
     register: 'Create Account',
-    verify: 'Verify Email',
     forgot: 'Send Reset Code',
     reset: 'Reset Password',
   };
@@ -274,20 +249,6 @@ const AuthView: React.FC<AuthViewProps> = ({
                 />
               </div>
 
-              {mode === 'verify' && (
-                <div>
-                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Verification Code</label>
-                  <input
-                    type="text"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    placeholder="Enter code"
-                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
-                    required
-                  />
-                </div>
-              )}
-
               {mode === 'reset' && (
                 <div>
                   <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Reset Code</label>
@@ -344,32 +305,6 @@ const AuthView: React.FC<AuthViewProps> = ({
               </div>
             )}
 
-            {mode === 'verify' && (
-              <div className="mt-4 text-center">
-                <button
-                  onClick={async () => {
-                    setLoading(true);
-                    setLocalError(null);
-                    setInfoMessage(null);
-                    try {
-                      const result = await onResendVerification(email);
-                      setInfoMessage('Verification code resent.');
-                      if (result?.devVerificationCode) {
-                        setDevHint(`Dev code: ${result.devVerificationCode}`);
-                      }
-                    } catch (err: any) {
-                      setLocalError(err.message || 'Failed to resend code');
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  className="text-xs font-bold uppercase tracking-wider text-themed-muted hover:text-themed"
-                >
-                  Resend verification code
-                </button>
-              </div>
-            )}
-
             {(mode === 'login' || mode === 'register') && (
               <div className="mt-6">
                 <button
@@ -409,7 +344,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                   </button>
                 </p>
               )}
-              {(mode === 'verify' || mode === 'forgot' || mode === 'reset') && (
+              {(mode === 'forgot' || mode === 'reset') && (
                 <button
                   onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); }}
                   className="text-sm font-bold text-themed hover:underline"
