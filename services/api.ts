@@ -62,14 +62,14 @@ export async function requestPasswordReset(email: string) {
 }
 
 export async function resetPassword(email: string, token: string, newPassword: string) {
-  return request<{ success: boolean }>('/auth/reset-password', {
+  return request<{ success: boolean; token?: string }>('/auth/reset-password', {
     method: 'POST',
-    body: JSON.stringify({ email, token, password: newPassword }),
+    body: JSON.stringify({ email, token, newPassword }),
   });
 }
 
 export async function googleSignIn(credential: string) {
-  return request<{ user: any; token: string }>('/auth/google', {
+  return request<{ user: any; token: string; refreshToken?: string }>('/auth/google', {
     method: 'POST',
     body: JSON.stringify({ credential }),
   });
@@ -386,4 +386,55 @@ export async function getDownloadHistory() {
 // Stub: Generate download token (ad-based model uses PDF unlock)
 export async function generateDownloadToken(_bookId: string) {
   return { downloadUrl: '', expiresAt: '' };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// User Progress API (Chapter Reflections)
+// ══════════════════════════════════════════════════════════════════
+
+export interface UserProgressData {
+  books: Record<string, {
+    completedIds: number[];
+    reflections: Record<number, string>;
+  }>;
+}
+
+// Get all user progress
+export async function getUserProgress() {
+  return request<UserProgressData>('/progress');
+}
+
+// Get progress for a specific book
+export async function getBookProgress(bookId: string) {
+  return request<{
+    bookId: string;
+    completedIds: number[];
+    reflections: Record<number, string>;
+  }>(`/progress/${bookId}`);
+}
+
+// Save a chapter reflection
+export async function saveChapterReflection(bookId: string, chapterId: number, reflection: string) {
+  return request<{ success: boolean; message: string }>(`/progress/${bookId}/${chapterId}/reflection`, {
+    method: 'POST',
+    body: JSON.stringify({ reflection }),
+  });
+}
+
+// Mark chapter as complete/incomplete
+export async function markChapterComplete(bookId: string, chapterId: number, completed: boolean) {
+  return request<{ success: boolean; message: string }>(`/progress/${bookId}/${chapterId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ completed }),
+  });
+}
+
+// Export reflections (all books)
+export async function exportAllReflections(format: 'json' | 'txt' | 'md' = 'json') {
+  return request<{ reflections: any[] }>(`/progress/export/all?format=${format}`);
+}
+
+// Export reflections for a specific book
+export async function exportBookReflections(bookId: string, format: 'json' | 'txt' | 'md' = 'json') {
+  return request<{ bookId: string; reflections: any[] }>(`/progress/export/${bookId}?format=${format}`);
 }

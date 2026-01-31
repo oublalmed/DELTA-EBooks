@@ -141,15 +141,31 @@ const App: React.FC = () => {
           setUser(data.user);
           setPurchasedBookIds(data.purchases);
           setIsAdmin(data.isAdmin || false); // Check if user is admin
-          // Load premium status and unlocked chapters
+          // Load premium status, unlocked chapters, and user progress
           return Promise.all([
             api.getPremiumStatus(),
-            api.getUnlockedChapters()
+            api.getUnlockedChapters(),
+            api.getUserProgress()
           ]);
         })
-        .then(([premiumData, unlockData]) => {
+        .then(([premiumData, unlockData, progressData]) => {
           setIsPremium(premiumData.isPremium);
           setUnlockedChapters(unlockData.unlocks || {});
+          // Merge database progress with local storage (database takes priority)
+          if (progressData.books) {
+            setProgress(prev => {
+              const merged = { ...prev };
+              Object.keys(progressData.books).forEach(bookId => {
+                const dbProgress = progressData.books[bookId];
+                const localProgress = prev.books[bookId] || { completedIds: [], reflections: {} };
+                merged.books[bookId] = {
+                  completedIds: dbProgress.completedIds.length > 0 ? dbProgress.completedIds : localProgress.completedIds,
+                  reflections: { ...localProgress.reflections, ...dbProgress.reflections }
+                };
+              });
+              return merged;
+            });
+          }
         })
         .catch(() => {
           localStorage.removeItem('delta_token');
@@ -183,9 +199,41 @@ const App: React.FC = () => {
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('delta_token');
+    localStorage.removeItem('delta_refresh_token');
     setUser(null);
     setPurchasedBookIds([]);
     setIsAdmin(false);
+    setView('shelf');
+  }, []);
+
+  // ── Password Reset Handlers ──
+  const handleForgotPassword = useCallback(async (email: string) => {
+    setAuthError(null);
+    const result = await api.requestPasswordReset(email);
+    return result;
+  }, []);
+
+  const handleResetPassword = useCallback(async (email: string, token: string, newPassword: string) => {
+    setAuthError(null);
+    const result = await api.resetPassword(email, token, newPassword);
+    if (result.token) {
+      localStorage.setItem('delta_token', result.token);
+    }
+  }, []);
+
+  // ── Google Sign-In Handler ──
+  const handleGoogleSignIn = useCallback(async (credential: string) => {
+    setAuthError(null);
+    const data = await api.googleSignIn(credential);
+    localStorage.setItem('delta_token', data.token);
+    if (data.refreshToken) {
+      localStorage.setItem('delta_refresh_token', data.refreshToken);
+    }
+    setUser(data.user);
+    setIsAdmin(data.user?.role === 'admin');
+    // Load purchases
+    const profile = await api.getProfile();
+    setPurchasedBookIds(profile.purchases);
     setView('shelf');
   }, []);
 
@@ -354,19 +402,32 @@ const App: React.FC = () => {
   const toggleComplete = useCallback((bookId: string, chapterId: number) => {
     setProgress(prev => {
       const bookProgress = prev.books[bookId] || { completedIds: [], reflections: {} };
-      const newCompleted = bookProgress.completedIds.includes(chapterId)
+      const isCompleted = bookProgress.completedIds.includes(chapterId);
+      const newCompleted = isCompleted
         ? bookProgress.completedIds.filter(id => id !== chapterId)
         : [...bookProgress.completedIds, chapterId];
+      
+      // Save to database if logged in
+      if (user) {
+        api.markChapterComplete(bookId, chapterId, !isCompleted).catch(console.error);
+      }
+      
       return {
         ...prev,
         books: { ...prev.books, [bookId]: { ...bookProgress, completedIds: newCompleted } }
       };
     });
-  }, []);
+  }, [user]);
 
   const saveReflection = useCallback((bookId: string, chapterId: number, text: string) => {
     setProgress(prev => {
       const bookProgress = prev.books[bookId] || { completedIds: [], reflections: {} };
+      
+      // Save to database if logged in
+      if (user) {
+        api.saveChapterReflection(bookId, chapterId, text).catch(console.error);
+      }
+      
       return {
         ...prev,
         books: {
@@ -375,7 +436,7 @@ const App: React.FC = () => {
         }
       };
     });
-  }, []);
+  }, [user]);
 
   // ── Derived data ──
   const currentBookProgress = currentBook
@@ -404,6 +465,9 @@ const App: React.FC = () => {
           <AuthView
             onLogin={handleLogin}
             onRegister={handleRegister}
+            onForgotPassword={handleForgotPassword}
+            onResetPassword={handleResetPassword}
+            onGoogleSignIn={handleGoogleSignIn}
             onBack={() => setView('shelf')}
             error={authError}
           />

@@ -555,5 +555,7 @@ safeAddColumn(`ALTER TABLE users ADD COLUMN email_verification_expires TEXT;`);
 safeAddColumn(`ALTER TABLE users ADD COLUMN password_reset_token TEXT;`);
 safeAddColumn(`ALTER TABLE users ADD COLUMN password_reset_expires TEXT;`);
 safeAddColumn(`ALTER TABLE users ADD COLUMN google_id TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN refresh_token TEXT;`);
+safeAddColumn(`ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'en';`);
 
 export default db;

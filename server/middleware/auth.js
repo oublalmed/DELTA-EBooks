@@ -2,6 +2,17 @@ import jwt from 'jsonwebtoken';
 import db from '../db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'delta-ebooks-secret-change-in-production';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'delta-ebooks-refresh-secret-change-in-production';
+
+// Warn if using default secrets in production
+if (process.env.NODE_ENV === 'production') {
+  if (JWT_SECRET.includes('change-in-production')) {
+    console.warn('[SECURITY WARNING] Using default JWT_SECRET in production!');
+  }
+  if (REFRESH_SECRET.includes('change-in-production')) {
+    console.warn('[SECURITY WARNING] Using default REFRESH_SECRET in production!');
+  }
+}
 
 /**
  * Required auth middleware — rejects if no valid token
@@ -112,7 +123,8 @@ export function checkAdmin(req, res, next) {
 }
 
 /**
- * Generate a JWT token for a user
+ * Generate a JWT access token for a user
+ * Short-lived (15 minutes) for security
  */
 export function generateToken(user) {
   return jwt.sign(
@@ -120,9 +132,41 @@ export function generateToken(user) {
       id: user.id, 
       email: user.email, 
       name: user.name,
-      role: user.role || 'client'
+      role: user.role || 'client',
+      type: 'access'
     },
     JWT_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: '15m' } // Short-lived for security
   );
+}
+
+/**
+ * Generate a long-lived refresh token
+ * Used to obtain new access tokens
+ */
+export function generateRefreshToken(user) {
+  return jwt.sign(
+    { 
+      id: user.id, 
+      email: user.email,
+      type: 'refresh'
+    },
+    REFRESH_SECRET,
+    { expiresIn: '30d' } // Long-lived
+  );
+}
+
+/**
+ * Verify a refresh token
+ */
+export function verifyRefreshToken(token) {
+  try {
+    const decoded = jwt.verify(token, REFRESH_SECRET);
+    if (decoded.type !== 'refresh') {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
 }

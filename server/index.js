@@ -17,6 +17,8 @@ import unlockRoutes from './routes/unlocks.js';
 import adminRoutes from './routes/admin.js';
 import clientRoutes from './routes/client.js';
 import aiGenerateRoutes from './routes/ai-generate.js';
+// NEW: User progress routes (chapter reflections)
+import progressRoutes from './routes/progress.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -55,6 +57,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/client', clientRoutes);
 // AI generation routes (admin only)
 app.use('/api/admin/ai', aiGenerateRoutes);
+// User progress routes (chapter reflections)
+app.use('/api/progress', progressRoutes);
 
 // ── Email subscription (simple) ──
 import db from './db.js';
