@@ -27,6 +27,7 @@ type AdUnlockContext =
   | { type: 'chapter'; book: Book; chapter: Chapter }
   | { type: 'feature'; feature: FeatureKey };
 
+const FREE_CHAPTERS = 5;
 const FEATURE_TRIAL_LIMIT = 5;
 const FEATURE_UNLOCK_DAYS = 7;
 
@@ -262,6 +263,7 @@ const App: React.FC = () => {
   }, [unlockedChapters]);
 
   const isChapterAccessible = useCallback((bookId: string, chapterId: number) => {
+    if (chapterId <= FREE_CHAPTERS) return true;
     return isChapterUnlocked(bookId, chapterId);
   }, [isChapterUnlocked]);
 
@@ -447,7 +449,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case 'landing':
-        return <LandingView onEnter={handleEnterLibrary} totalBooks={books.length} totalChapters={totalChapters} />;
+        return <LandingView onEnter={handleEnterLibrary} totalBooks={books.length} totalChapters={totalChapters} freeChapters={FREE_CHAPTERS} />;
 
       case 'auth':
         return (
@@ -471,6 +473,7 @@ const App: React.FC = () => {
             books={books}
             unlockedChapters={unlockedChapters}
             progress={progress}
+            freeChapters={FREE_CHAPTERS}
             onSelectBook={selectBook}
             onBack={() => setView('shelf')}
             onLogout={handleLogout}
@@ -502,6 +505,7 @@ const App: React.FC = () => {
             user={user}
             theme={theme}
             streak={streak}
+            freeChapters={FREE_CHAPTERS}
             onSelect={selectBook}
             onUnlockChapter={(book, chapter) => {
               setAdUnlockContext({ type: 'chapter', book, chapter });
@@ -521,6 +525,7 @@ const App: React.FC = () => {
             book={currentBook!}
             completedIds={currentBookProgress.completedIds}
             unlockedChapterIds={unlockedChapters[currentBook!.id] || []}
+            freeChapters={FREE_CHAPTERS}
             onSelect={handleSelectChapter}
             onChat={() => setView('chat')}
             onBack={() => setView('shelf')}
@@ -581,7 +586,7 @@ const App: React.FC = () => {
         );
 
       default:
-        return <ShelfView books={books} progress={progress} unlockedChapters={unlockedChapters} user={user} theme={theme} streak={streak} onSelect={selectBook} onUnlockChapter={(book, chapter) => {
+        return <ShelfView books={books} progress={progress} unlockedChapters={unlockedChapters} user={user} theme={theme} streak={streak} freeChapters={FREE_CHAPTERS} onSelect={selectBook} onUnlockChapter={(book, chapter) => {
           setAdUnlockContext({ type: 'chapter', book, chapter });
           setShowAdUnlock(true);
         }} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => handleOpenFeature('expression')} onOpenJourney={() => handleOpenFeature('journey')} />;
