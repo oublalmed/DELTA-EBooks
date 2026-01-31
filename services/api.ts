@@ -160,3 +160,229 @@ export async function subscribe(email: string) {
     body: JSON.stringify({ email }),
   });
 }
+
+// ══════════════════════════════════════════════════════════════════
+// NEW: Enhanced Journal API
+// ══════════════════════════════════════════════════════════════════
+
+import type {
+  JournalEntryInput,
+  JournalEntryFull,
+  JournalCalendarDay,
+  JournalAnalytics,
+  JournalComment,
+  PremiumStatus,
+  PremiumGrantRequest,
+  PremiumGrantResponse,
+  PremiumHistoryItem,
+} from '../types';
+
+// Get all journal entries (with optional filters)
+export async function getJournalEntries(params?: {
+  month?: number;
+  year?: number;
+  category?: string;
+  mood?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.month) searchParams.set('month', String(params.month));
+  if (params?.year) searchParams.set('year', String(params.year));
+  if (params?.category) searchParams.set('category', params.category);
+  if (params?.mood) searchParams.set('mood', params.mood);
+  
+  const query = searchParams.toString();
+  return request<JournalEntryFull[]>(`/journal${query ? `?${query}` : ''}`);
+}
+
+// Get calendar data for a month
+export async function getJournalCalendar(year: number, month: number) {
+  return request<Record<string, JournalCalendarDay[]>>(`/journal/calendar/${year}/${month}`);
+}
+
+// Get mood analytics
+export async function getJournalAnalytics(period?: 'week' | 'month' | 'year') {
+  const query = period ? `?period=${period}` : '';
+  return request<JournalAnalytics>(`/journal/analytics${query}`);
+}
+
+// Get a specific journal entry
+export async function getJournalEntry(id: number) {
+  return request<JournalEntryFull>(`/journal/${id}`);
+}
+
+// Create a new journal entry
+export async function createJournalEntry(entry: JournalEntryInput) {
+  return request<JournalEntryFull>('/journal', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
+// Update a journal entry
+export async function updateJournalEntry(id: number, entry: Partial<JournalEntryInput>) {
+  return request<JournalEntryFull>(`/journal/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(entry),
+  });
+}
+
+// Delete a journal entry
+export async function deleteJournalEntry(id: number) {
+  return request<void>(`/journal/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Get public journal feed
+export async function getPublicJournalFeed(page = 1, limit = 20) {
+  return request<JournalEntryFull[]>(`/journal/public/feed?page=${page}&limit=${limit}`);
+}
+
+// Toggle like on a public entry
+export async function toggleJournalLike(entryId: number) {
+  return request<{ liked: boolean }>(`/journal/${entryId}/like`, {
+    method: 'POST',
+  });
+}
+
+// Get comments for a public entry
+export async function getJournalComments(entryId: number) {
+  return request<JournalComment[]>(`/journal/${entryId}/comments`);
+}
+
+// Add comment to a public entry
+export async function addJournalComment(entryId: number, content: string) {
+  return request<JournalComment>(`/journal/${entryId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
+// Delete own comment
+export async function deleteJournalComment(commentId: number) {
+  return request<void>(`/journal/comments/${commentId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NEW: Ad-Based Premium API
+// ══════════════════════════════════════════════════════════════════
+
+// Check premium status
+export async function getPremiumStatus() {
+  return request<PremiumStatus>('/premium/status');
+}
+
+// Start free trial
+export async function startTrial() {
+  return request<{ success: boolean; message: string; trialEnds: string }>('/premium/start-trial', {
+    method: 'POST',
+  });
+}
+
+// Grant premium access after watching ad
+export async function grantPremiumAccess(data: PremiumGrantRequest) {
+  return request<PremiumGrantResponse>('/premium/grant-access', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Get premium access history
+export async function getPremiumHistory() {
+  return request<{ history: PremiumHistoryItem[]; logs: any[] }>('/premium/history');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NEW: Unlock API (Chapters, Journal Access, PDF Downloads)
+// ══════════════════════════════════════════════════════════════════
+
+import type {
+  JournalAccessStatus,
+  ChapterUnlockStatus,
+  PDFDownloadStatus,
+} from '../types';
+
+// ── Chapter Unlocks ──
+
+// Get all unlocked chapters
+export async function getUnlockedChapters() {
+  return request<{
+    freeChapters: number;
+    unlocks: Record<string, number[]>;
+    raw: { book_id: string; chapter_id: number; unlocked_at: string }[];
+  }>('/unlocks/chapters');
+}
+
+// Check if a specific chapter is unlocked
+export async function checkChapterUnlock(bookId: string, chapterId: number) {
+  return request<{
+    isUnlocked: boolean;
+    isFree: boolean;
+    chapterId: number;
+    bookId: string;
+    unlockedAt: string | null;
+  }>(`/unlocks/chapters/${bookId}/${chapterId}`);
+}
+
+// Unlock a chapter after watching ad
+export async function unlockChapter(bookId: string, chapterId: number) {
+  return request<{
+    success: boolean;
+    message: string;
+    isUnlocked: boolean;
+    unlockedAt?: string;
+  }>(`/unlocks/chapters/${bookId}/${chapterId}/unlock`, {
+    method: 'POST',
+  });
+}
+
+// ── Journal/Calendar Access ──
+
+// Get journal access status
+export async function getJournalAccessStatus() {
+  return request<JournalAccessStatus>('/unlocks/journal');
+}
+
+// Unlock journal access after watching ad
+export async function unlockJournalAccess() {
+  return request<{
+    success: boolean;
+    message: string;
+    accessUntil: string;
+    daysRemaining: number;
+  }>('/unlocks/journal/unlock', {
+    method: 'POST',
+  });
+}
+
+// ── PDF Download Unlocks ──
+
+// Get PDF download status for a book
+export async function getPDFDownloadStatus(bookId: string) {
+  return request<PDFDownloadStatus>(`/unlocks/pdf/${bookId}`);
+}
+
+// Record an ad watched for PDF download
+export async function recordPDFAdWatch(bookId: string) {
+  return request<{
+    success: boolean;
+    message: string;
+    adsWatched: number;
+    adsRequired: number;
+    adsRemaining: number;
+    isUnlocked: boolean;
+    canDownload: boolean;
+  }>(`/unlocks/pdf/${bookId}/watch-ad`, {
+    method: 'POST',
+  });
+}
+
+// Get all PDF download statuses
+export async function getAllPDFDownloadStatuses() {
+  return request<{
+    adsRequired: number;
+    books: Record<string, PDFDownloadStatus>;
+  }>('/unlocks/pdf');
+}

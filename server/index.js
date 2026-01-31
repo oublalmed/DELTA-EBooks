@@ -10,6 +10,15 @@ import downloadRoutes from './routes/downloads.js';
 import webhookRoutes from './routes/webhooks.js';
 import expressionRoutes from './routes/expression.js';
 import journeyRoutes from './routes/journey.js';
+// NEW: Enhanced journal and premium routes
+import journalRoutes from './routes/journal.js';
+import premiumRoutes from './routes/premium.js';
+// NEW: Unlock routes (chapters, journal access, PDF downloads)
+import unlockRoutes from './routes/unlocks.js';
+// NEW: Admin dashboard routes (PROTECTED)
+import adminRoutes from './routes/admin.js';
+import clientRoutes from './routes/client.js';
+import aiGenerateRoutes from './routes/ai-generate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -48,6 +57,17 @@ app.use('/api/downloads', downloadRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/expression', expressionRoutes);
 app.use('/api/journey', journeyRoutes);
+// NEW: Enhanced journal and premium routes
+app.use('/api/journal', journalRoutes);
+app.use('/api/premium', premiumRoutes);
+// NEW: Unlock routes (chapters, journal access, PDF downloads)
+app.use('/api/unlocks', unlockRoutes);
+// NEW: Admin dashboard routes (PROTECTED - requires admin role)
+app.use('/api/admin', adminRoutes);
+// Client-facing routes (messaging, ideas)
+app.use('/api/client', clientRoutes);
+// AI generation routes (admin only)
+app.use('/api/admin/ai', aiGenerateRoutes);
 
 // ── Email subscription (simple) ──
 import db from './db.js';

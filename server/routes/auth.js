@@ -51,10 +51,18 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Check if account is suspended
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
+    }
+
     const valid = bcrypt.compareSync(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    // Update last active
+    db.prepare('UPDATE users SET last_active_at = datetime("now") WHERE id = ?').run(user.id);
 
     const token = generateToken(user);
     const { password_hash, ...safeUser } = user;
@@ -69,9 +77,14 @@ router.post('/login', (req, res) => {
 // ── GET /api/auth/me ──
 router.get('/me', requireAuth, (req, res) => {
   try {
-    const user = db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare('SELECT id, email, name, role, status, created_at FROM users WHERE id = ?').get(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if account is suspended
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account has been suspended' });
     }
 
     // Get purchased books
@@ -89,6 +102,7 @@ router.get('/me', requireAuth, (req, res) => {
       purchases: purchases.map(p => p.book_id),
       purchaseDetails: purchases,
       downloadCount: downloadCount.count,
+      isAdmin: user.role === 'admin',
     });
   } catch (err) {
     console.error('Profile error:', err);

@@ -1,8 +1,5 @@
 import { Router } from 'express';
-import db from '../db.js';
-import { verifyWebhookSignature } from '../services/paypal.js';
-
-import { Router } from 'express';
+import express from 'express';
 import db from '../db.js';
 import { verifyWebhookSignature } from '../services/paypal.js';
 import { constructWebhookEvent } from '../services/stripe.js';

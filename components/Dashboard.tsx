@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Book, PurchaseRecord, DownloadInfo } from '../types';
-import { getPaymentHistory, getDownloadHistory, generateDownloadToken } from '../services/api';
+import { User, Book, PurchaseRecord, DownloadInfo, PDFDownloadStatus, PDF_ADS_REQUIRED } from '../types';
+import { getPaymentHistory, getDownloadHistory, generateDownloadToken, getAllPDFDownloadStatuses } from '../services/api';
+import PDFDownloadManager from './PDFDownloadManager';
 
 interface DashboardProps {
   user: User;
@@ -17,12 +18,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
   const [tab, setTab] = useState<'books' | 'downloads' | 'account'>('books');
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [downloadInfo, setDownloadInfo] = useState<DownloadInfo[]>([]);
+  const [pdfStatuses, setPdfStatuses] = useState<Record<string, PDFDownloadStatus>>({});
   const [downloadingBook, setDownloadingBook] = useState<string | null>(null);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [showPDFManager, setShowPDFManager] = useState(false);
+  const [selectedBookForPDF, setSelectedBookForPDF] = useState<Book | null>(null);
 
   useEffect(() => {
     loadPaymentHistory();
     loadDownloadInfo();
+    loadPDFStatuses();
   }, []);
 
   const loadPaymentHistory = async () => {
@@ -36,6 +41,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
     try {
       const data = await getDownloadHistory();
       setDownloadInfo(data.downloadInfo);
+    } catch { /* ignore */ }
+  };
+  
+  const loadPDFStatuses = async () => {
+    try {
+      const data = await getAllPDFDownloadStatuses();
+      setPdfStatuses(data.books || {});
     } catch { /* ignore */ }
   };
 
@@ -54,11 +66,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
       setDownloadingBook(null);
     }
   };
+  
+  const handleOpenPDFManager = (book: Book) => {
+    setSelectedBookForPDF(book);
+    setShowPDFManager(true);
+  };
+  
+  const handleDownloadReady = (bookId: string) => {
+    // PDF is unlocked, trigger download
+    handleDownload(bookId);
+    loadPDFStatuses(); // Refresh statuses
+  };
 
   const purchasedBooks = books.filter(b => purchasedBookIds.includes(b.id));
 
   const getDownloadInfoForBook = (bookId: string) => {
     return downloadInfo.find(d => d.bookId === bookId);
+  };
+  
+  const getPDFStatusForBook = (bookId: string) => {
+    return pdfStatuses[bookId];
   };
 
   return (
@@ -95,7 +122,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
                     : 'border-transparent text-themed-muted hover:text-themed-sub'
                 }`}
               >
-                {t === 'books' ? `My Books (${purchasedBooks.length})` : t === 'downloads' ? 'Downloads' : 'Account'}
+                {t === 'books' ? 'My Books' : t === 'downloads' ? 'PDF Downloads' : 'Account'}
               </button>
             ))}
           </div>
@@ -113,103 +140,131 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
         {/* Books Tab */}
         {tab === 'books' && (
           <div>
-            {purchasedBooks.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="w-16 h-16 bg-themed-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-themed-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-display font-medium text-themed mb-2">No books yet</h3>
-                <p className="text-themed-muted text-sm mb-6">Browse our library to find your next transformative read.</p>
-                <button onClick={onBack} className="bg-stone-800 text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-700 transition-all">
-                  Browse Books
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {purchasedBooks.map(book => {
-                  const dlInfo = getDownloadInfoForBook(book.id);
-                  return (
-                    <div key={book.id} className="bg-themed-card rounded-2xl border border-themed overflow-hidden animate-fadeIn">
-                      <div className="flex">
-                        <img src={book.coverImage} className="w-32 h-44 object-cover" alt={book.title} />
-                        <div className="flex-1 p-5">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Owned</span>
-                            <span className="text-themed-muted text-[9px] font-bold uppercase tracking-wider">Lifetime Access</span>
-                          </div>
-                          <h3 className="font-display font-medium text-themed text-base mb-1 leading-snug">{book.title}</h3>
-                          <p className="text-themed-muted text-xs mb-4">{book.chapters.length} chapters</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {books.map(book => {
+                const pdfStatus = getPDFStatusForBook(book.id);
+                const isPdfUnlocked = pdfStatus?.isUnlocked || false;
+                
+                return (
+                  <div key={book.id} className="bg-themed-card rounded-2xl border border-themed overflow-hidden animate-fadeIn">
+                    <div className="flex">
+                      <img src={book.coverImage} className="w-32 h-44 object-cover" alt={book.title} />
+                      <div className="flex-1 p-5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Free Access</span>
+                        </div>
+                        <h3 className="font-display font-medium text-themed text-base mb-1 leading-snug">{book.title}</h3>
+                        <p className="text-themed-muted text-xs mb-4">{book.chapters.length} chapters</p>
 
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => onSelectBook(book)}
-                              className="flex-1 bg-stone-800 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-stone-700 transition-all"
-                            >
-                              Read
-                            </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onSelectBook(book)}
+                            className="flex-1 bg-stone-800 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-stone-700 transition-all"
+                          >
+                            Read
+                          </button>
+                          {isPdfUnlocked ? (
                             <button
                               onClick={() => handleDownload(book.id)}
                               disabled={downloadingBook === book.id}
-                              className="flex items-center gap-1.5 bg-themed-muted text-themed-sub py-2 px-3 rounded-lg text-xs font-bold hover:bg-themed border border-themed transition-all disabled:opacity-50"
+                              className="flex items-center gap-1.5 bg-emerald-500 text-white py-2 px-3 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all disabled:opacity-50"
                             >
                               {downloadingBook === book.id ? (
-                                <div className="w-3.5 h-3.5 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
+                                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                               ) : (
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
                               )}
                               PDF
                             </button>
-                          </div>
-
-                          {dlInfo && (
-                            <p className="text-themed-muted text-[10px] mt-2">
-                              {dlInfo.downloadsRemaining} downloads remaining
-                            </p>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenPDFManager(book)}
+                              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2 px-3 rounded-lg text-xs font-bold hover:shadow-lg transition-all"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                              </svg>
+                              PDF
+                            </button>
                           )}
                         </div>
+
+                        <p className="text-themed-muted text-[10px] mt-2">
+                          {isPdfUnlocked ? 'PDF ready to download' : `Watch ${PDF_ADS_REQUIRED} ads to unlock PDF`}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* Downloads Tab */}
         {tab === 'downloads' && (
           <div>
-            <div className="bg-themed-card rounded-2xl border border-themed p-6 mb-6">
-              <h3 className="font-display font-medium text-themed text-lg mb-2">Download Your Books</h3>
-              <p className="text-themed-muted text-sm mb-1">Each purchased book includes up to 5 secure PDF downloads.</p>
-              <p className="text-themed-muted text-sm">PDFs are watermarked with your email for security.</p>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 mb-6 text-white">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-display font-medium text-xl mb-2">Download Books as PDF</h3>
+                  <p className="text-white/80 text-sm mb-1">Watch {PDF_ADS_REQUIRED} short videos to unlock PDF download for each book.</p>
+                  <p className="text-white/80 text-sm">Your progress is saved — watch at your own pace!</p>
+                </div>
+              </div>
             </div>
 
-            {purchasedBooks.length === 0 ? (
-              <p className="text-themed-muted text-sm text-center py-10">No purchased books to download.</p>
-            ) : (
-              <div className="space-y-4">
-                {purchasedBooks.map(book => {
-                  const dlInfo = getDownloadInfoForBook(book.id);
-                  return (
-                    <div key={book.id} className="bg-themed-card rounded-xl border border-themed p-5 flex items-center justify-between">
+            <div className="space-y-4">
+              {books.map(book => {
+                const pdfStatus = getPDFStatusForBook(book.id);
+                const isUnlocked = pdfStatus?.isUnlocked || false;
+                const adsWatched = pdfStatus?.adsWatched || 0;
+                const progress = (adsWatched / PDF_ADS_REQUIRED) * 100;
+                
+                return (
+                  <div key={book.id} className="bg-themed-card rounded-xl border border-themed p-5">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-4">
-                        <img src={book.coverImage} className="w-12 h-16 object-cover rounded-lg" alt={book.title} />
+                        <img src={book.coverImage} className="w-12 h-16 object-cover rounded-lg shadow" alt={book.title} />
                         <div>
                           <h4 className="font-medium text-themed text-sm">{book.title}</h4>
-                          <p className="text-themed-muted text-xs">
-                            {dlInfo ? `${dlInfo.downloadsUsed} of ${dlInfo.maxDownloads} downloads used` : 'Ready to download'}
-                          </p>
+                          <p className="text-themed-muted text-xs">{book.chapters.length} chapters</p>
                         </div>
                       </div>
+                      {isUnlocked ? (
+                        <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                          Unlocked
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          {adsWatched}/{PDF_ADS_REQUIRED} ads
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="mb-4">
+                      <div className="h-2 bg-themed-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${isUnlocked ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}
+                          style={{ width: `${isUnlocked ? 100 : progress}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {isUnlocked ? (
                       <button
                         onClick={() => handleDownload(book.id)}
-                        disabled={downloadingBook === book.id || (dlInfo && dlInfo.downloadsRemaining <= 0)}
-                        className="bg-stone-800 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-stone-700 disabled:opacity-40 transition-all flex items-center gap-2"
+                        disabled={downloadingBook === book.id}
+                        className="w-full bg-emerald-500 text-white py-3 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
                       >
                         {downloadingBook === book.id ? (
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -220,11 +275,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
                         )}
                         Download PDF
                       </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    ) : (
+                      <button
+                        onClick={() => handleOpenPDFManager(book)}
+                        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-lg text-xs font-bold uppercase tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        </svg>
+                        Watch Ads to Unlock ({PDF_ADS_REQUIRED - adsWatched} left)
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -274,17 +339,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, purchasedBookIds, on
               </div>
             )}
 
-            {/* Refund policy */}
+            {/* Support info */}
             <div className="mt-6 bg-amber-50 border border-amber-100 rounded-xl p-5">
-              <h4 className="text-amber-800 font-bold text-sm mb-1">7-Day Refund Policy</h4>
+              <h4 className="text-amber-800 font-bold text-sm mb-1">Need Help?</h4>
               <p className="text-amber-700 text-xs leading-relaxed">
-                Not satisfied? Contact us within 7 days of purchase for a full refund. No questions asked.
-                Email: support@delta-ebooks.com
+                Contact us anytime at support@delta-ebooks.com
               </p>
             </div>
           </div>
         )}
       </div>
+      
+      {/* PDF Download Manager Modal */}
+      {selectedBookForPDF && (
+        <PDFDownloadManager
+          isOpen={showPDFManager}
+          book={selectedBookForPDF}
+          onClose={() => {
+            setShowPDFManager(false);
+            setSelectedBookForPDF(null);
+          }}
+          onDownloadReady={handleDownloadReady}
+        />
+      )}
     </div>
   );
 };

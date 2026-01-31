@@ -12,14 +12,19 @@ interface ShelfViewProps {
   user: User | null;
   theme: ThemeMode;
   streak: ReadingStreak;
+  isPremium: boolean;
+  isAdmin?: boolean;
   onSelect: (book: Book) => void;
   onOpenPricing: (book?: Book) => void;
   onOpenBundle: () => void;
+  onOpenPremium: () => void;
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
   onOpenExpression: () => void;
   onOpenJourney: () => void;
+  onOpenAdmin?: () => void;
+  onOpenContact?: () => void;
 }
 
 const accentMap: Record<string, { bg: string; text: string; badge: string; gradient: string }> = {
@@ -57,7 +62,7 @@ const streakBadges = [
   { min: 100, label: 'Enlightened', icon: '👑' },
 ];
 
-const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, onSelect, onOpenPricing, onOpenBundle, onToggleTheme, onOpenAuth, onOpenDashboard, onOpenExpression, onOpenJourney }) => {
+const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds, user, theme, streak, isPremium, isAdmin, onSelect, onOpenPricing, onOpenBundle, onOpenPremium, onToggleTheme, onOpenAuth, onOpenDashboard, onOpenExpression, onOpenJourney, onOpenAdmin, onOpenContact }) => {
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
   const totalCompleted = books.reduce((sum, b) => {
     const bp = progress.books[b.id];
@@ -143,12 +148,43 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
               )}
 
               {user ? (
-                <button onClick={onOpenDashboard} className="flex items-center gap-2 bg-themed-card border border-themed px-4 py-2.5 rounded-full text-themed text-xs font-bold hover:bg-themed-muted transition-all">
-                  <div className="w-5 h-5 rounded-full bg-stone-700 flex items-center justify-center">
-                    <span className="text-white text-[9px] font-bold">{(user.name || user.email)[0].toUpperCase()}</span>
-                  </div>
-                  <span className="hidden sm:inline">My Books</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Admin Dashboard Button - Only visible to admins */}
+                  {isAdmin && onOpenAdmin && (
+                    <button 
+                      onClick={onOpenAdmin} 
+                      className="flex items-center gap-2 bg-stone-800 text-white px-4 py-2.5 rounded-full text-xs font-bold hover:bg-stone-700 transition-all"
+                      title="Admin Dashboard"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="hidden sm:inline">Admin</span>
+                    </button>
+                  )}
+                  
+                  {/* Contact/Ideas Button */}
+                  {onOpenContact && (
+                    <button 
+                      onClick={onOpenContact} 
+                      className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-full text-xs font-bold hover:bg-amber-600 transition-all"
+                      title="Contact & Ideas"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      <span className="hidden sm:inline">Contact</span>
+                    </button>
+                  )}
+                  
+                  <button onClick={onOpenDashboard} className="flex items-center gap-2 bg-themed-card border border-themed px-4 py-2.5 rounded-full text-themed text-xs font-bold hover:bg-themed-muted transition-all">
+                    <div className="w-5 h-5 rounded-full bg-stone-700 flex items-center justify-center">
+                      <span className="text-white text-[9px] font-bold">{(user.name || user.email)[0].toUpperCase()}</span>
+                    </div>
+                    <span className="hidden sm:inline">My Books</span>
+                  </button>
+                </div>
               ) : (
                 <button onClick={onOpenAuth} className="bg-stone-800 text-white px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-stone-700 transition-all shadow-lg hover:shadow-xl">
                   Sign In
@@ -172,8 +208,11 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
                   First {FREE_CHAPTERS} chapters free
                 </div>
-                <div className="inline-flex items-center gap-2 bg-themed-card border border-themed text-themed-sub px-4 py-2 rounded-full text-xs font-bold">One-time payment &middot; Lifetime access</div>
                 <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full text-xs font-bold">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Watch ad for full access
+                </div>
+                <div className="inline-flex items-center gap-2 bg-themed-card border border-themed text-themed-sub px-4 py-2 rounded-full text-xs font-bold">
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                   </svg>
@@ -204,32 +243,38 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
       </div>
 
-      {/* Featured / promotional banner for non-purchasers */}
-      {!hasPurchases && (
+      {/* Featured / promotional banner for non-premium users */}
+      {!isPremium && (
         <div className="max-w-6xl mx-auto px-6 pb-10">
           <div className="ad-banner rounded-2xl p-6 sm:p-8 relative overflow-hidden animate-fadeIn">
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="flex-shrink-0">
-                <img
-                  src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=200&h=260"
-                  alt="Featured book"
-                  className="w-24 h-32 object-cover rounded-xl shadow-lg"
-                />
+                <div className="relative">
+                  <img
+                    src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=200&h=260"
+                    alt="Featured book"
+                    className="w-24 h-32 object-cover rounded-xl shadow-lg"
+                  />
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg">👑</span>
+                  </div>
+                </div>
               </div>
               <div className="flex-1 text-center sm:text-left">
-                <div className="inline-flex items-center gap-1.5 badge-featured px-3 py-1 rounded-full text-[10px] mb-3">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                  FEATURED
+                <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Unlock Premium Free
                 </div>
-                <h3 className="font-display text-xl text-themed font-medium mb-2">Start Your Transformation Today</h3>
+                <h3 className="font-display text-xl text-themed font-medium mb-2">Get Full Access — Watch a Short Ad</h3>
                 <p className="text-themed-sub text-sm mb-4">
-                  Join 2,847+ readers who have transformed their mindset. Read the first {FREE_CHAPTERS} chapters of any book for free, then unlock the complete journey for just ${PRICE_PER_BOOK}.
+                  Join 2,847+ readers! Read the first {FREE_CHAPTERS} chapters free, then watch a short video to unlock <strong>7 days of full premium access</strong> to all books and features.
                 </p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                  <button onClick={() => onOpenPricing(books[0])} className="bg-stone-800 text-white px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-stone-700 transition-all shadow-md hover:shadow-lg">
-                    Explore Books — From ${PRICE_PER_BOOK}
+                  <button onClick={onOpenPremium} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider hover:shadow-lg transition-all flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Unlock Premium Free
                   </button>
-                  <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">7-day refund guarantee</span>
+                  <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">No payment required</span>
                 </div>
               </div>
             </div>
@@ -309,14 +354,15 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                         )}
                       </div>
                       <div>
-                        {purchased ? (
+                        {purchased || isPremium ? (
                           <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Owned</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{isPremium ? 'Premium' : 'Owned'}</span>
                           </div>
                         ) : (
-                          <div className="bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-                            <span className="text-sm font-bold text-stone-800">${PRICE_PER_BOOK}</span>
+                          <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">Free</span>
                           </div>
                         )}
                       </div>
@@ -356,10 +402,10 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
                     {/* Bottom row */}
                     <div className="flex items-center justify-between">
                       <span className="text-themed-muted text-xs">
-                        {purchased ? `${completedCount} of ${chapterCount} completed` : `${FREE_CHAPTERS} free chapters · ${chapterCount} total`}
+                        {(purchased || isPremium) ? `${completedCount} of ${chapterCount} completed` : `${FREE_CHAPTERS} free chapters · ${chapterCount} total`}
                       </span>
                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider group-hover:gap-3 transition-all duration-300" style={{ color: 'var(--accent)' }}>
-                        <span>{purchased ? (completedCount > 0 ? 'Continue Reading' : 'Start Reading') : 'Preview Free'}</span>
+                        <span>{(purchased || isPremium) ? (completedCount > 0 ? 'Continue Reading' : 'Start Reading') : 'Preview Free'}</span>
                         <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
@@ -396,8 +442,8 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
       </div>
 
-      {/* Special offer for non-purchasers */}
-      {!hasPurchases && (
+      {/* Special offer for non-premium users */}
+      {!isPremium && (
         <div className="max-w-6xl mx-auto px-6 pb-10">
           <div className="bg-gradient-to-r from-stone-800 via-stone-900 to-stone-800 rounded-3xl p-8 sm:p-10 relative overflow-hidden animate-borderGlow border border-amber-500/20">
             <div className="absolute inset-0 pointer-events-none">
@@ -413,25 +459,26 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
               </div>
               <div className="flex-1 text-center sm:text-left">
                 <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                  Limited Time
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Free Premium Access
                 </div>
-                <h3 className="text-white font-display text-2xl sm:text-3xl font-medium mb-2">Unlock Any Book for Just ${PRICE_PER_BOOK}</h3>
+                <h3 className="text-white font-display text-2xl sm:text-3xl font-medium mb-2">Unlock Everything — Just Watch an Ad</h3>
                 <p className="text-stone-400 font-serif italic text-base mb-5">
-                  Full access to all {books[0].chapters.length} chapters, PDF download, AI companion, and reflection journal. <span className="text-amber-400/80 not-italic font-sans text-xs font-bold uppercase">One-time payment. No subscription.</span>
+                  Get full access to all {books[0].chapters.length} chapters, PDF download, AI companion, journal, and more. <span className="text-amber-400/80 not-italic font-sans text-xs font-bold uppercase">7 days premium per ad. No payment needed.</span>
                 </p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                  <button onClick={() => onOpenPricing(books[0])} className="bg-gradient-to-r from-amber-400 to-amber-300 text-stone-900 px-8 py-3.5 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl hover:shadow-amber-400/20 transition-all hover:-translate-y-0.5">
-                    Buy Now — ${PRICE_PER_BOOK}
+                  <button onClick={onOpenPremium} className="bg-gradient-to-r from-amber-400 to-amber-300 text-stone-900 px-8 py-3.5 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl hover:shadow-amber-400/20 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Watch Ad — Get 7 Days Free
                   </button>
                   <div className="flex items-center gap-4 text-stone-500 text-[10px] uppercase tracking-wider font-bold">
                     <span className="flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                      Secure
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      ~30 sec video
                     </span>
                     <span className="flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                      7-day refund
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                      100% Free
                     </span>
                   </div>
                 </div>
@@ -629,9 +676,9 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
-            { icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', title: 'Secure Payment', desc: 'PayPal protected checkout. Your data is always safe.', color: 'emerald' },
-            { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', title: '7-Day Refund', desc: 'Full refund, no questions asked. Zero risk.', color: 'blue' },
-            { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', title: 'Lifetime Access', desc: 'Buy once, read forever. All future updates included.', color: 'amber' },
+            { icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z', title: 'Watch & Unlock', desc: 'Short video ad unlocks 7 days of premium. 100% free.', color: 'amber' },
+            { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', title: '7-Day Access', desc: 'Full premium access for one week per ad watched.', color: 'emerald' },
+            { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', title: 'Unlimited Renewals', desc: 'Watch another ad when access expires. Always free.', color: 'blue' },
           ].map((item, i) => (
             <div key={i} className="bg-themed-card border border-themed rounded-2xl p-6 text-center hover-lift">
               <div className={`w-12 h-12 bg-${item.color}-50 text-${item.color}-600 rounded-full flex items-center justify-center mx-auto mb-3`}>
@@ -644,67 +691,35 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         </div>
       </div>
 
-      {/* About Author */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="bg-themed-muted rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-[-30%] right-[-20%] w-[50%] h-[80%] bg-amber-100/20 rounded-full blur-[80px]" />
-          </div>
-          <div className="relative w-32 h-32 rounded-2xl bg-stone-800 flex items-center justify-center shrink-0 shadow-xl">
-            <span className="text-white text-5xl font-display font-bold">M</span>
-            <div className="absolute -bottom-2 -right-2 bg-amber-400 text-stone-900 w-8 h-8 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-            </div>
-          </div>
-          <div className="relative flex-1 text-center md:text-left">
-            <p className="text-themed-muted text-[10px] uppercase tracking-[0.3em] font-bold mb-2">About the Author</p>
-            <h3 className="font-display text-2xl sm:text-3xl text-themed font-medium mb-3">{AUTHOR}</h3>
-            <p className="text-themed-sub font-serif italic leading-relaxed mb-5 text-lg">
-              A philosopher, author, and personal development guide dedicated to helping people build deeper relationships, discover their purpose, and master their inner world through timeless wisdom.
-            </p>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-              {[
-                { value: '4', label: 'Books Published' },
-                { value: '80', label: 'Chapters Written' },
-                { value: '2,847', label: 'Readers Worldwide' },
-              ].map(s => (
-                <div key={s.label} className="bg-themed-card border border-themed px-4 py-2.5 rounded-xl text-center">
-                  <div className="text-themed font-display font-bold text-lg">{s.value}</div>
-                  <div className="text-themed-muted text-[10px] uppercase tracking-wider font-bold">{s.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Email Capture */}
       <div className="max-w-2xl mx-auto px-6 py-12">
         <EmailCapture variant="card" />
       </div>
 
       {/* Final CTA before footer */}
-      {!hasPurchases && (
+      {!isPremium && (
         <div className="max-w-4xl mx-auto px-6 pb-12">
           <div className="text-center bg-themed-card border border-themed rounded-3xl p-8 sm:p-12 relative overflow-hidden">
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-[-50%] left-[50%] -translate-x-1/2 w-[80%] h-[80%] bg-rose-50/30 rounded-full blur-[80px]" />
+              <div className="absolute top-[-50%] left-[50%] -translate-x-1/2 w-[80%] h-[80%] bg-amber-50/30 rounded-full blur-[80px]" />
             </div>
             <div className="relative z-10">
+              <div className="text-5xl mb-4">👑</div>
               <h2 className="font-display text-3xl sm:text-4xl text-themed font-medium mb-4">Ready to Begin Your Journey?</h2>
               <p className="text-themed-sub font-serif italic text-lg mb-8 max-w-lg mx-auto">
-                The wisdom you seek is waiting inside these pages. Take the first step today.
+                The wisdom you seek is waiting inside these pages. Watch a short ad to unlock everything.
               </p>
               <button
-                onClick={() => onOpenPricing(books[0])}
-                className="cta-premium text-white px-10 py-4 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl transition-all hover:-translate-y-0.5 inline-flex items-center gap-3"
+                onClick={onOpenPremium}
+                className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-4 rounded-full font-bold text-sm uppercase tracking-wider hover:shadow-2xl transition-all hover:-translate-y-0.5 inline-flex items-center gap-3"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Get Started — From ${PRICE_PER_BOOK}
+                Unlock Premium — Free
               </button>
-              <p className="text-themed-muted text-xs mt-4">7-day refund guarantee &middot; Secure PayPal checkout</p>
+              <p className="text-themed-muted text-xs mt-4">Watch a ~30 second video &middot; Get 7 days full access</p>
             </div>
           </div>
         </div>
@@ -718,7 +733,7 @@ const ShelfView: React.FC<ShelfViewProps> = ({ books, progress, purchasedBookIds
         <p className="text-themed-muted text-xs tracking-[0.2em] uppercase font-medium mb-2">The Universal Wisdom Library</p>
         <p className="text-themed-muted text-xs font-serif italic mb-4">{totalChapters} chapters of wisdom by {AUTHOR}</p>
         <div className="flex items-center justify-center gap-4 text-themed-muted text-[10px]">
-          <span>Secure PayPal</span><span>&middot;</span><span>7-day refund</span><span>&middot;</span><span>Lifetime access</span><span>&middot;</span><span>support@delta-ebooks.com</span>
+          <span>Free with ads</span><span>&middot;</span><span>7-day premium access</span><span>&middot;</span><span>Unlimited renewals</span><span>&middot;</span><span>support@delta-ebooks.com</span>
         </div>
       </footer>
     </div>

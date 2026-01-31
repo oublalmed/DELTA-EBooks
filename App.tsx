@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE } from './types';
+import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE, AdminViewState } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
 
@@ -15,6 +15,13 @@ import PricingModal from './components/PricingModal';
 import ExpressionSpaceView from './components/ExpressionSpaceView';
 import JourneyCalendarView from './components/JourneyCalendarView';
 import ProfileView from './components/ProfileView';
+// NEW: Enhanced journal and premium components
+import JournalView from './components/JournalView';
+import PremiumManager from './components/PremiumManager';
+import JournalAccessGate from './components/JournalAccessGate';
+// NEW: Admin Dashboard and Contact View
+import AdminDashboard from './components/admin/AdminDashboard';
+import ContactView from './components/ContactView';
 
 const App: React.FC = () => {
   // ── View state ──
@@ -54,6 +61,19 @@ const App: React.FC = () => {
   const [showPricing, setShowPricing] = useState(false);
   const [pricingTargetBook, setPricingTargetBook] = useState<Book | null>(null);
   const [isBundleMode, setIsBundleMode] = useState(false);
+  
+  // ── NEW: Premium modal (ad-based) ──
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  
+  // ── NEW: Chapter unlock state ──
+  const [unlockedChapters, setUnlockedChapters] = useState<Record<string, number[]>>({});
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [pendingUnlock, setPendingUnlock] = useState<{ bookId: string; chapterId: number } | null>(null);
+  const [adLoading, setAdLoading] = useState(false);
+  
+  // ── NEW: Admin state ──
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ── Reading streak ──
   const [streak, setStreak] = useState<ReadingStreak>(() => {
@@ -120,6 +140,16 @@ const App: React.FC = () => {
         .then(data => {
           setUser(data.user);
           setPurchasedBookIds(data.purchases);
+          setIsAdmin(data.isAdmin || false); // Check if user is admin
+          // Load premium status and unlocked chapters
+          return Promise.all([
+            api.getPremiumStatus(),
+            api.getUnlockedChapters()
+          ]);
+        })
+        .then(([premiumData, unlockData]) => {
+          setIsPremium(premiumData.isPremium);
+          setUnlockedChapters(unlockData.unlocks || {});
         })
         .catch(() => {
           localStorage.removeItem('delta_token');
@@ -155,6 +185,7 @@ const App: React.FC = () => {
     localStorage.removeItem('delta_token');
     setUser(null);
     setPurchasedBookIds([]);
+    setIsAdmin(false);
     setView('shelf');
   }, []);
 
@@ -163,20 +194,77 @@ const App: React.FC = () => {
     return purchasedBookIds.includes(bookId);
   }, [purchasedBookIds]);
 
-  const isChapterAccessible = useCallback((bookId: string, chapterId: number) => {
-    if (isBookPurchased(bookId)) return true;
-    return chapterId <= FREE_CHAPTERS;
-  }, [isBookPurchased]);
+  // Check if a chapter is unlocked (via ad watch)
+  const isChapterUnlocked = useCallback((bookId: string, chapterId: number) => {
+    const bookUnlocks = unlockedChapters[bookId] || [];
+    return bookUnlocks.includes(chapterId);
+  }, [unlockedChapters]);
 
+  const isChapterAccessible = useCallback((bookId: string, chapterId: number) => {
+    // First 5 chapters are always free
+    if (chapterId <= FREE_CHAPTERS) return true;
+    // Check if book is purchased
+    if (isBookPurchased(bookId)) return true;
+    // Check if chapter was unlocked via ad
+    if (isChapterUnlocked(bookId, chapterId)) return true;
+    return false;
+  }, [isBookPurchased, isChapterUnlocked]);
+
+  // Chapters 6+ that are not unlocked show as partial (locked preview)
   const isChapterPartial = useCallback((bookId: string, chapterId: number) => {
+    if (chapterId <= FREE_CHAPTERS) return false;
     if (isBookPurchased(bookId)) return false;
-    return chapterId === 3; // Chapter 3 is partially visible
-  }, [isBookPurchased]);
+    if (isChapterUnlocked(bookId, chapterId)) return false;
+    return true; // All locked chapters show partial content
+  }, [isBookPurchased, isChapterUnlocked]);
 
   const isChapterTeaser = useCallback((bookId: string, chapterId: number) => {
-    if (isBookPurchased(bookId)) return false;
-    return chapterId === 4; // Chapter 4 is a teaser
-  }, [isBookPurchased]);
+    // No teaser mode anymore - just partial for locked chapters
+    return false;
+  }, []);
+  
+  // Handle unlocking a chapter via ad
+  const handleUnlockChapter = useCallback(async (bookId: string, chapterId: number) => {
+    if (!user) {
+      setView('auth');
+      return;
+    }
+    setPendingUnlock({ bookId, chapterId });
+    setShowAdModal(true);
+  }, [user]);
+  
+  // Simulate watching ad and unlock chapter
+  const handleAdWatched = useCallback(async () => {
+    if (!pendingUnlock) return;
+    
+    setAdLoading(true);
+    try {
+      const result = await api.unlockChapter(pendingUnlock.bookId, pendingUnlock.chapterId);
+      if (result.success) {
+        // Update local state
+        setUnlockedChapters(prev => ({
+          ...prev,
+          [pendingUnlock.bookId]: [...(prev[pendingUnlock.bookId] || []), pendingUnlock.chapterId]
+        }));
+        setShowAdModal(false);
+        // Navigate to the chapter
+        if (currentBook && currentBook.id === pendingUnlock.bookId) {
+          const chapter = currentBook.chapters.find(c => c.id === pendingUnlock.chapterId);
+          if (chapter) {
+            setCurrentChapter(chapter);
+            setView('reader');
+            window.scrollTo(0, 0);
+            updateStreak();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to unlock chapter:', error);
+    } finally {
+      setAdLoading(false);
+      setPendingUnlock(null);
+    }
+  }, [pendingUnlock, currentBook, updateStreak]);
 
   // ── Navigation handlers ──
   const selectBook = useCallback((book: Book) => {
@@ -193,41 +281,31 @@ const App: React.FC = () => {
   const handleSelectChapter = useCallback((chapter: Chapter) => {
     if (!currentBook) return;
 
-    if (!isChapterAccessible(currentBook.id, chapter.id)) {
-      // Locked chapter — show pricing
-      setPricingTargetBook(currentBook);
-      setShowPricing(true);
+    // Check if chapter is accessible (free or unlocked)
+    if (isChapterAccessible(currentBook.id, chapter.id)) {
+      // Full access - show complete chapter
+      setCurrentChapter(chapter);
+      setView('reader');
+      window.scrollTo(0, 0);
+      updateStreak();
       return;
     }
 
-    // Apply partial/teaser content rules client-side
-    let processedChapter = { ...chapter };
-    if (isChapterPartial(currentBook.id, chapter.id)) {
-      const words = chapter.content.split(' ');
-      const cutPoint = Math.floor(words.length * 0.6);
-      processedChapter = {
-        ...chapter,
-        content: words.slice(0, cutPoint).join(' '),
-        isPartial: true,
-        accessMessage: 'This chapter continues... Purchase the book to read the full content.',
-      };
-    } else if (isChapterTeaser(currentBook.id, chapter.id)) {
-      const words = chapter.content.split(' ');
-      const cutPoint = Math.floor(words.length * 0.3);
-      processedChapter = {
-        ...chapter,
-        content: words.slice(0, cutPoint).join(' '),
-        isTeaser: true,
-        isPartial: true,
-        accessMessage: 'The story continues with a powerful revelation... Purchase the book to discover what comes next.',
-      };
-    }
+    // Chapter is locked (6+) - show preview with unlock prompt
+    const words = chapter.content.split(' ');
+    const cutPoint = Math.floor(words.length * 0.25); // Show 25% preview
+    const processedChapter = {
+      ...chapter,
+      content: words.slice(0, cutPoint).join(' '),
+      isPartial: true,
+      isLocked: true,
+      accessMessage: 'Watch a short video to unlock this chapter and continue your journey.',
+    };
 
     setCurrentChapter(processedChapter);
     setView('reader');
     window.scrollTo(0, 0);
-    updateStreak(); // Track reading streak
-  }, [currentBook, isChapterAccessible, isChapterPartial, isChapterTeaser, updateStreak]);
+  }, [currentBook, isChapterAccessible, updateStreak]);
 
   const handleOpenPricing = useCallback((book?: Book) => {
     if (!user) {
@@ -364,9 +442,17 @@ const App: React.FC = () => {
             user={user}
             theme={theme}
             streak={streak}
+            isPremium={isPremium}
             onSelect={selectBook}
             onOpenPricing={handleOpenPricing}
             onOpenBundle={handleOpenBundle}
+            onOpenPremium={() => {
+              if (!user) {
+                setView('auth');
+                return;
+              }
+              setShowPremiumModal(true);
+            }}
             onToggleTheme={cycleTheme}
             onOpenAuth={() => setView('auth')}
             onOpenDashboard={() => setView('dashboard')}
@@ -396,10 +482,11 @@ const App: React.FC = () => {
             completedIds={currentBookProgress.completedIds}
             isBookPurchased={isBookPurchased(currentBook!.id)}
             freeChapters={FREE_CHAPTERS}
+            unlockedChapterIds={unlockedChapters[currentBook!.id] || []}
             onSelect={handleSelectChapter}
             onChat={() => setView('chat')}
             onBack={() => setView('shelf')}
-            onUnlock={() => handleOpenPricing(currentBook!)}
+            onUnlock={(chapterId) => handleUnlockChapter(currentBook!.id, chapterId)}
           />
         );
 
@@ -420,15 +507,10 @@ const App: React.FC = () => {
             onToggleTheme={cycleTheme}
             onSetFontSize={setFontSize}
             onUpdateLanguage={handleUpdateLanguage}
-            onUnlock={() => handleOpenPricing(currentBook!)}
+            onUnlock={() => handleUnlockChapter(currentBook!.id, currentChapter!.id)}
             onNext={(id) => {
               const next = currentBook!.chapters.find(c => c.id === id);
               if (next) {
-                if (!isChapterAccessible(currentBook!.id, next.id)) {
-                  setPricingTargetBook(currentBook);
-                  setShowPricing(true);
-                  return;
-                }
                 handleSelectChapter(next);
               }
             }}
@@ -440,36 +522,96 @@ const App: React.FC = () => {
 
       case 'expression':
         return (
-          <ExpressionSpaceView
-            onBack={() => setView('shelf')}
-            onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
-          />
+          <JournalAccessGate onBack={() => setView('shelf')}>
+            <ExpressionSpaceView
+              onBack={() => setView('shelf')}
+              onOpenJourney={() => { setView('journey'); window.scrollTo(0, 0); }}
+            />
+          </JournalAccessGate>
         );
 
       case 'journey':
         return (
-          <JourneyCalendarView
+          <JournalAccessGate onBack={() => setView('shelf')}>
+            <JourneyCalendarView
+              onBack={() => setView('shelf')}
+              onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
+            />
+          </JournalAccessGate>
+        );
+
+      case 'journal':
+        return (
+          <JournalAccessGate onBack={() => setView('shelf')}>
+            <JournalView
+              onBack={() => setView('shelf')}
+              onOpenCommunity={() => {
+                // TODO: Implement community view for public entries
+                setView('shelf');
+              }}
+            />
+          </JournalAccessGate>
+        );
+
+      case 'admin':
+        // Admin dashboard - only accessible by admins
+        if (!isAdmin) {
+          setView('shelf');
+          return null;
+        }
+        return (
+          <AdminDashboard
+            onLogout={handleLogout}
             onBack={() => setView('shelf')}
-            onOpenExpression={() => { setView('expression'); window.scrollTo(0, 0); }}
           />
         );
 
+      case 'contact':
+        // Client messaging and ideas submission
+        if (!user) {
+          setView('auth');
+          return null;
+        }
+        return (
+          <ContactView onBack={() => setView('shelf')} />
+        );
+
       default:
-        return <ShelfView books={BOOKS} progress={progress} purchasedBookIds={purchasedBookIds} user={user} theme={theme} streak={streak} onSelect={selectBook} onOpenPricing={handleOpenPricing} onOpenBundle={handleOpenBundle} onToggleTheme={cycleTheme} onOpenAuth={() => setView('auth')} onOpenDashboard={() => setView('dashboard')} onOpenExpression={() => {
-          if (!user) {
-            setView('auth');
-            return;
-          }
-          setView('expression');
-          window.scrollTo(0, 0);
-        }} onOpenJourney={() => {
-          if (!user) {
-            setView('auth');
-            return;
-          }
-          setView('journey');
-          window.scrollTo(0, 0);
-        }} />;
+        return <ShelfView 
+          books={BOOKS} 
+          progress={progress} 
+          purchasedBookIds={purchasedBookIds} 
+          user={user} 
+          theme={theme} 
+          streak={streak} 
+          isPremium={isPremium}
+          isAdmin={isAdmin}
+          onSelect={selectBook} 
+          onOpenPricing={handleOpenPricing} 
+          onOpenBundle={handleOpenBundle} 
+          onOpenPremium={() => { if (!user) { setView('auth'); return; } setShowPremiumModal(true); }} 
+          onToggleTheme={cycleTheme} 
+          onOpenAuth={() => setView('auth')} 
+          onOpenDashboard={() => setView('dashboard')} 
+          onOpenExpression={() => {
+            if (!user) {
+              setView('auth');
+              return;
+            }
+            setView('expression');
+            window.scrollTo(0, 0);
+          }} 
+          onOpenJourney={() => {
+            if (!user) {
+              setView('auth');
+              return;
+            }
+            setView('journey');
+            window.scrollTo(0, 0);
+          }}
+          onOpenAdmin={() => setView('admin')}
+          onOpenContact={() => setView('contact')}
+        />;
     }
   };
 
@@ -502,6 +644,70 @@ const App: React.FC = () => {
           onPurchaseComplete={handlePurchaseComplete}
           onOpenAuth={() => { setShowPricing(false); setView('auth'); }}
         />
+      )}
+      
+      {/* NEW: Ad-based Premium Modal */}
+      <PremiumManager
+        isOpen={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+        onStatusChange={(premium) => setIsPremium(premium)}
+      />
+      
+      {/* Chapter Unlock Ad Modal */}
+      {showAdModal && pendingUnlock && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-themed-card rounded-3xl p-8 max-w-md w-full text-center shadow-2xl animate-fadeIn">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            
+            <h3 className="text-2xl font-display text-themed font-medium mb-3">
+              Unlock Chapter {pendingUnlock.chapterId}
+            </h3>
+            <p className="text-themed-sub mb-6">
+              Watch a short video (~30 seconds) to unlock this chapter permanently.
+            </p>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleAdWatched}
+                disabled={adLoading}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-xl font-bold text-sm uppercase tracking-wider hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {adLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Unlocking...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    </svg>
+                    Watch Ad to Unlock
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowAdModal(false);
+                  setPendingUnlock(null);
+                }}
+                className="w-full py-3 text-themed-muted text-sm font-medium hover:text-themed transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            
+            <p className="text-themed-muted text-xs mt-4">
+              Once unlocked, this chapter stays accessible forever.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
