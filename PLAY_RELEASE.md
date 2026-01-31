@@ -1,7 +1,7 @@
 # Google Play Release Guide (Rewarded Ad Model)
 
 This project ships as a Vite web app. To publish on Google Play, wrap it as an Android app
-using Capacitor or a Trusted Web Activity (TWA). The steps below assume Capacitor.
+using Capacitor or a Trusted Web Activity (TWA). The steps below assume Capacitor. up to date
 
 ## 1) Prerequisites
 - Android Studio + Android SDK
