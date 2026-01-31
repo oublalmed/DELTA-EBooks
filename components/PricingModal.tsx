@@ -69,25 +69,29 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
         const unpurchased = allBooks.filter(b => !purchasedBookIds.includes(b.id));
         for (const book of unpurchased) {
           const { orderId } = await api.createPaymentOrder(book.id);
-          await api.capturePaymentOrder(orderId, book.id);
+          const result = await api.capturePaymentOrder(orderId, book.id);
+          if (!result.success) {
+            throw new Error(result.message || 'Payment failed. Please try again.');
+          }
         }
-      const { orderId } = await api.createPaymentOrder(targetBook.id);
-      const result = await api.capturePaymentOrder(orderId, targetBook.id);
 
-      if (result.success) {
         setSuccess(true);
         setTimeout(() => {
-          allBooks.forEach(b => onPurchaseComplete(b.id));
+          const booksToUnlock = unpurchased.length > 0 ? unpurchased : allBooks;
+          booksToUnlock.forEach(b => onPurchaseComplete(b.id));
         }, 2000);
-      } else {
-        const { orderId } = await api.createPaymentOrder(targetBook!.id);
-        const result = await api.capturePaymentOrder(orderId, targetBook!.id);
-        if (result.success) {
-          setSuccess(true);
-          setTimeout(() => {
-            onPurchaseComplete(targetBook!.id);
-          }, 2000);
+      } else if (targetBook) {
+        const { orderId } = await api.createPaymentOrder(targetBook.id);
+        const result = await api.capturePaymentOrder(orderId, targetBook.id);
+
+        if (!result.success) {
+          throw new Error(result.message || 'Payment failed. Please try again.');
         }
+
+        setSuccess(true);
+        setTimeout(() => {
+          onPurchaseComplete(targetBook.id);
+        }, 2000);
       }
     } catch (err: any) {
       setError(err.message || 'Payment failed. Please try again.');
@@ -148,58 +152,51 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, targetBook
         )}
 
         {/* Book info */}
-        <div className="flex items-start gap-4 mb-8">
-          {isBundleMode ? (
+        {isBundleMode ? (
+          <div className="flex items-start gap-4 mb-8">
             <div className="flex -space-x-2 shrink-0">
               {allBooks.slice(0, 4).map(b => (
                 <img key={b.id} src={b.coverImage} alt={b.title} className="w-14 h-20 object-cover rounded-xl shadow-lg border-2 border-white" />
               ))}
             </div>
-          ) : (
-            <img src={targetBook!.coverImage} alt={targetBook!.title} className="w-20 h-28 object-cover rounded-xl shadow-lg" />
-          )}
-          <div className="flex-1">
-            {isBundleMode && (
+            <div className="flex-1">
               <div className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider mb-2">
                 Save ${BUNDLE_SAVINGS.toFixed(2)}
               </div>
-            )}
-            <h2 className="font-display text-xl text-themed font-medium mb-1">{title}</h2>
-            <p className="text-themed-muted text-xs mb-3">
-              {isBundleMode
-                ? `${allBooks.length} books · ${totalChapters} chapters`
-                : `${targetBook!.author} · ${totalChapters} chapters`
-              }
-            </p>
-            <div className="flex items-center gap-2">
-              {isBundleMode && (
+              <h2 className="font-display text-xl text-themed font-medium mb-1">{title}</h2>
+              <p className="text-themed-muted text-xs mb-3">
+                {`${allBooks.length} books · ${totalChapters} chapters`}
+              </p>
+              <div className="flex items-center gap-2">
                 <span className="text-themed-muted line-through text-lg">${(PRICE_PER_BOOK * allBooks.length).toFixed(2)}</span>
-              )}
-              <span className="text-3xl font-display font-bold text-themed">${price}</span>
-            </div>
-            <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold mt-1">One-time payment</p>
-        {/* Book info with premium styling */}
-        <div className="flex items-start gap-5 mb-8">
-          <div className="relative">
-            <img src={targetBook.coverImage} alt={targetBook.title} className="w-24 h-32 object-cover rounded-xl shadow-lg" />
-            <div className="absolute -top-2 -right-2 badge-featured w-7 h-7 rounded-full flex items-center justify-center text-[10px]">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-              </svg>
+                <span className="text-3xl font-display font-bold text-themed">${price}</span>
+              </div>
+              <p className="text-themed-muted text-[10px] uppercase tracking-wider font-bold mt-1">One-time payment</p>
             </div>
           </div>
-          <div className="flex-1">
-            <h2 className="font-display text-xl text-themed font-medium mb-1">{targetBook.title}</h2>
-            <p className="text-themed-muted text-xs mb-3">{targetBook.author} &middot; {targetBook.chapters.length} chapters</p>
-            <div className="flex items-baseline gap-2">
-              <div className="text-3xl font-display font-bold text-themed">${PRICE_PER_BOOK}</div>
-              <div className="text-themed-muted text-xs line-through">$19.99</div>
+        ) : (
+          <div className="flex items-start gap-5 mb-8">
+            <div className="relative">
+              <img src={targetBook!.coverImage} alt={targetBook!.title} className="w-24 h-32 object-cover rounded-xl shadow-lg" />
+              <div className="absolute -top-2 -right-2 badge-featured w-7 h-7 rounded-full flex items-center justify-center text-[10px]">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+              </div>
             </div>
-            <p className="text-emerald-600 text-[10px] uppercase tracking-wider font-bold mt-1">
-              50% OFF — One-time payment
-            </p>
+            <div className="flex-1">
+              <h2 className="font-display text-xl text-themed font-medium mb-1">{targetBook!.title}</h2>
+              <p className="text-themed-muted text-xs mb-3">{targetBook!.author} &middot; {targetBook!.chapters.length} chapters</p>
+              <div className="flex items-baseline gap-2">
+                <div className="text-3xl font-display font-bold text-themed">${price}</div>
+                <div className="text-themed-muted text-xs line-through">$19.99</div>
+              </div>
+              <p className="text-emerald-600 text-[10px] uppercase tracking-wider font-bold mt-1">
+                50% OFF — One-time payment
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Motivational message */}
         <div className="bg-themed-muted rounded-2xl p-4 mb-6 text-center">
