@@ -6,6 +6,7 @@ interface LibraryViewProps {
   book: Book;
   completedIds: number[];
   unlockedChapterIds: number[];
+  freeChapters: number;
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
   onBack: () => void;
@@ -19,11 +20,12 @@ const accentMap: Record<string, { bg: string; text: string; badge: string; borde
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-500', border: 'border-emerald-200' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedChapterIds, onSelect, onChat, onBack, onUnlockChapter }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedChapterIds, freeChapters, onSelect, onChat, onBack, onUnlockChapter }) => {
   const [search, setSearch] = useState('');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const progress = book.chapters.length > 0 ? Math.round((completedIds.length / book.chapters.length) * 100) : 0;
   const unlockedSet = new Set(unlockedChapterIds);
+  const nextLockedChapter = book.chapters.find(ch => ch.id > freeChapters && !unlockedSet.has(ch.id));
 
   const filteredChapters = book.chapters.filter(ch =>
     ch.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -31,6 +33,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedC
   );
 
   const getChapterStatus = (chapter: Chapter) => {
+    if (chapter.id <= freeChapters) return 'free';
     return unlockedSet.has(chapter.id) ? 'unlocked' : 'locked';
   };
 
@@ -70,7 +73,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedC
                 </span>
               ) : (
                 <span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                  All chapters locked
+                  {freeChapters} free chapters
                 </span>
               )}
             </div>
@@ -110,20 +113,18 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedC
         </div>
 
         {/* Unlock banner */}
-        {unlockedSet.size === 0 && (
+        {nextLockedChapter && (
           <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <h3 className="text-white font-display text-lg font-medium">Unlock Chapters as You Read</h3>
-              <p className="text-stone-400 text-sm">Watch a short ad to unlock the next chapter.</p>
+              <p className="text-stone-400 text-sm">First {freeChapters} chapters are free. Watch an ad to unlock the next one.</p>
             </div>
-            {book.chapters[0] && (
-              <button
-                onClick={() => onUnlockChapter(book.chapters[0])}
-                className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap"
-              >
-                Unlock First Chapter
-              </button>
-            )}
+            <button
+              onClick={() => onUnlockChapter(nextLockedChapter)}
+              className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap"
+            >
+              Unlock Next Chapter
+            </button>
           </div>
         )}
 
@@ -160,6 +161,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, unlockedC
 
                     {/* Status badge */}
                     <div className="absolute top-3 right-3">
+                      {status === 'free' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Free</span>}
                       {status === 'unlocked' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Unlocked</span>}
                       {status === 'locked' && (
                         <span className="bg-stone-700 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">

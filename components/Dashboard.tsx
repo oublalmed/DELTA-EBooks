@@ -6,6 +6,7 @@ interface DashboardProps {
   books: Book[];
   unlockedChapters: Record<string, number[]>;
   progress: UserProgress;
+  freeChapters: number;
   onSelectBook: (book: Book) => void;
   onBack: () => void;
   onLogout: () => void;
@@ -13,7 +14,7 @@ interface DashboardProps {
   onUnlockChapter: (book: Book, chapter: Chapter) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedChapters, progress, onSelectBook, onBack, onLogout, onOpenProfile, onUnlockChapter }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedChapters, progress, freeChapters, onSelectBook, onBack, onLogout, onOpenProfile, onUnlockChapter }) => {
   const [tab, setTab] = useState<'library' | 'account'>('library');
   const totalUnlockedChapters = Object.values(unlockedChapters).reduce((sum, chapters) => sum + chapters.length, 0);
   const totalChapters = books.reduce((sum, b) => sum + b.chapters.length, 0);
@@ -113,10 +114,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, books, unlockedChapters, pr
                           >
                             Read
                           </button>
-                          {unlockedCount < book.chapters.length && (
+                          {book.chapters.length > freeChapters && (
                             <button
                               onClick={() => {
-                                const nextChapter = book.chapters.find(ch => !(unlockedChapters[book.id] || []).includes(ch.id));
+                                const nextChapter = book.chapters.find(ch => ch.id > freeChapters && !(unlockedChapters[book.id] || []).includes(ch.id));
                                 if (nextChapter) onUnlockChapter(book, nextChapter);
                               }}
                               className="bg-themed-muted text-themed-sub px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-themed border border-themed transition-all"
