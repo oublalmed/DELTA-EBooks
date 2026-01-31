@@ -76,7 +76,7 @@ export async function googleSignIn(credential: string) {
 }
 
 export async function getProfile() {
-  return request<{ user: any }>('/auth/me');
+  return request<{ user: any; purchases: string[]; isAdmin: boolean; downloadCount: number }>('/auth/me');
 }
 
 export async function updateProfile(data: { name?: string; language?: string }) {
@@ -367,4 +367,23 @@ export async function getAllPDFDownloadStatuses() {
     adsRequired: number;
     books: Record<string, PDFDownloadStatus>;
   }>('/unlocks/pdf');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Legacy stubs (for Dashboard compatibility - ad-based model)
+// ══════════════════════════════════════════════════════════════════
+
+// Stub: No payment history in ad-based model
+export async function getPaymentHistory() {
+  return [];
+}
+
+// Stub: No download history in ad-based model
+export async function getDownloadHistory() {
+  return { downloadInfo: [] };
+}
+
+// Stub: Generate download token (ad-based model uses PDF unlock)
+export async function generateDownloadToken(_bookId: string) {
+  return { downloadUrl: '', expiresAt: '' };
 }

@@ -1,52 +1,8 @@
 
-import React, { useState, useEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, ThemeMode, Chapter, UserProgress, Book, User, ReadingStreak, Language, FREE_CHAPTERS, PRICE_PER_BOOK, BUNDLE_PRICE, AdminViewState } from './types';
 import { BOOKS } from './constants';
 import * as api from './services/api';
-
-// Error Boundary Component
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('App Error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-red-50 flex items-center justify-center p-8">
-          <div className="max-w-lg text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h1>
-            <p className="text-red-500 mb-4">{this.state.error?.message}</p>
-            <pre className="bg-red-100 p-4 rounded text-left text-xs overflow-auto max-h-64 mb-4">
-              {this.state.error?.stack}
-            </pre>
-            <button 
-              onClick={() => window.location.reload()}
-              className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
-            >
-              Reload Page
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 import LandingView from './components/LandingView';
 import ShelfView from './components/ShelfView';
@@ -671,7 +627,6 @@ const App: React.FC = () => {
   }
 
   return (
-    <ErrorBoundary>
     <div className="min-h-screen bg-themed transition-colors duration-300">
       <div className="page-transition" key={view}>
         {renderView()}
@@ -755,7 +710,6 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
-    </ErrorBoundary>
   );
 };
 
