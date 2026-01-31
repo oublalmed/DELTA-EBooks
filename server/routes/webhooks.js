@@ -1,8 +1,55 @@
 import { Router } from 'express';
+import express from 'express';
 import db from '../db.js';
 import { verifyWebhookSignature } from '../services/paypal.js';
+import { constructWebhookEvent } from '../services/stripe.js';
 
 const router = Router();
+
+/**
+ * POST /api/webhooks/stripe
+ *
+ * Stripe sends webhook events for payment lifecycle events.
+ */
+router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = constructWebhookEvent(req.body, sig);
+  } catch (err) {
+    console.warn('Stripe webhook signature error:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'payment_intent.succeeded': {
+      const paymentIntent = event.data.object;
+      const { userId, bookId } = paymentIntent.metadata;
+      const amount = paymentIntent.amount / 100; // Convert from cents
+
+      if (userId && bookId) {
+        // Record the purchase
+        db.prepare(`
+          INSERT OR IGNORE INTO purchases (user_id, book_id, stripe_payment_intent_id, amount, currency, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(userId, bookId, paymentIntent.id, amount, paymentIntent.currency, 'completed');
+
+        // Log successful payment
+        db.prepare(`
+          INSERT INTO payment_logs (user_id, book_id, event_type, amount, currency, status, raw_data)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(userId, bookId, 'STRIPE_PAYMENT_SUCCEEDED', amount, paymentIntent.currency, 'completed', JSON.stringify(paymentIntent));
+      }
+      break;
+    }
+    default:
+      console.log(`Unhandled Stripe event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+});
 
 /**
  * POST /api/webhooks/paypal

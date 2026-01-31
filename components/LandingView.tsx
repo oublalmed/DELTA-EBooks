@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { BOOK_TITLE, AUTHOR, BOOK_SUBTITLE } from '../constants';
-import { FREE_CHAPTERS } from '../types';
 import EmailCapture from './EmailCapture';
 import Logo from './Logo';
 
@@ -9,6 +8,7 @@ interface LandingViewProps {
   onEnter: () => void;
   totalBooks: number;
   totalChapters: number;
+  freeChapters: number;
 }
 
 const motivationalQuotes = [
@@ -18,7 +18,7 @@ const motivationalQuotes = [
   { text: "The unexamined life is not worth living.", author: "Socrates" },
 ];
 
-const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalChapters }) => {
+const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalChapters, freeChapters }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [readerCount, setReaderCount] = useState(0);
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -74,10 +74,6 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
         <div className="absolute bottom-[-20%] right-[-15%] w-[50%] h-[50%] bg-rose-500/10 rounded-full blur-[120px] animate-pulse-soft" style={{ animationDelay: '2s' }} />
       </div>
 
-      <div className={`z-10 text-center max-w-3xl px-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        {/* Delta Wisdom Logo */}
-        <div className="mb-6">
-          <Logo size="hero" showText={false} />
       {/* Top navigation */}
       <div className={`relative z-20 flex items-center justify-between px-6 sm:px-10 pt-8 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="flex items-center gap-3">
@@ -97,6 +93,11 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
       {/* Main hero content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 sm:px-10">
         <div className={`text-center max-w-4xl transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          {/* Delta Wisdom Logo */}
+          <div className="mb-6">
+            <Logo size="hero" showText={false} />
+          </div>
+
           {/* Subtitle badge */}
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white/80 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-[0.3em] mb-8 animate-fadeIn stagger-1">
             <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -105,29 +106,6 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             {BOOK_SUBTITLE}
           </div>
 
-        <p className="text-xl text-themed-muted italic font-serif mb-4">
-          By {AUTHOR}
-        </p>
-        <p className="text-themed-sub font-serif text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-          A curated collection of philosophical journeys exploring love, purpose, resilience, and the art of mindful existence.
-        </p>
-
-        {/* Live reader count */}
-        <div className="flex items-center justify-center gap-2 mb-8 animate-fadeIn" style={{ animationDelay: '0.5s' }}>
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          <span className="text-themed-muted text-sm font-medium">
-            <span className="text-emerald-600 font-bold">{readerCount}</span> people reading right now
-          </span>
-        </div>
-
-        {/* Stats */}
-        <div className="flex items-center justify-center gap-8 mb-8">
-          <div className="text-center">
-            <div className="text-2xl font-display font-bold text-themed">{totalBooks}</div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-themed-muted font-bold mt-1">Books</div>
           {/* Main title */}
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-display text-white mb-6 leading-[1.05] font-medium text-shadow-hero animate-fadeIn stagger-2">
             {BOOK_TITLE}
@@ -150,12 +128,23 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             </span>
           </p>
 
+          {/* Live reader count */}
+          <div className="flex items-center justify-center gap-2 mb-8 animate-fadeIn" style={{ animationDelay: '0.5s' }}>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-themed-muted text-sm font-medium">
+              <span className="text-emerald-600 font-bold">{readerCount}</span> people reading right now
+            </span>
+          </div>
+
           {/* Stats row */}
           <div className="flex items-center justify-center gap-6 sm:gap-10 mb-10 animate-fadeIn stagger-4">
             {[
               { value: totalBooks, label: 'Books' },
               { value: totalChapters, label: 'Chapters' },
-              { value: `${FREE_CHAPTERS}`, label: 'Free / Book' },
+              { value: `${freeChapters}`, label: 'Free Chapters' },
               { value: '2,847+', label: 'Readers' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
@@ -172,7 +161,7 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
               className="group relative inline-flex items-center justify-center px-10 sm:px-14 py-5 font-bold tracking-wider text-stone-900 transition-all duration-500 bg-gradient-to-r from-amber-300 via-amber-200 to-amber-300 rounded-full hover:shadow-2xl hover:shadow-amber-400/30 hover:-translate-y-1 active:translate-y-0 text-sm uppercase"
             >
               <span className="relative z-10 flex items-center gap-3">
-                Start Reading — It's Free
+                Start Reading — {freeChapters} Free Chapters
                 <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -189,12 +178,12 @@ const LandingView: React.FC<LandingViewProps> = ({ onEnter, totalBooks, totalCha
             </button>
           </div>
 
-          {/* Free badge */}
-          <div className="inline-flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-300 px-5 py-2.5 rounded-full text-xs font-bold mb-8 border border-emerald-400/20 animate-fadeIn stagger-5">
+      {/* Ad-supported badge */}
+      <div className="inline-flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-300 px-5 py-2.5 rounded-full text-xs font-bold mb-8 border border-emerald-400/20 animate-fadeIn stagger-5">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
             </svg>
-            No sign-up required — Start your journey now
+        No sign-up required — ads unlock chapters after the first {freeChapters}
           </div>
         </div>
       </div>

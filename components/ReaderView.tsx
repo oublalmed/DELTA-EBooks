@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Chapter, Book, ThemeMode, PRICE_PER_BOOK } from '../types';
+import { Chapter, Book, ThemeMode, Language, PRICE_PER_BOOK } from '../types';
 import { getChapterInsight } from '../services/geminiService';
+import { translations } from '../i18n';
 
 interface ReaderViewProps {
   book: Book;
@@ -11,11 +12,13 @@ interface ReaderViewProps {
   isBookPurchased: boolean;
   theme: ThemeMode;
   fontSize: number;
+  language: Language;
   onToggleComplete: () => void;
   onSaveReflection: (text: string) => void;
   onBack: () => void;
   onToggleTheme: () => void;
   onSetFontSize: (size: number) => void;
+  onUpdateLanguage: (language: Language) => void;
   onUnlock: () => void;
   onNext: (id: number) => void;
 }
@@ -35,11 +38,13 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   isBookPurchased,
   theme,
   fontSize,
+  language,
   onToggleComplete,
   onSaveReflection,
   onBack,
   onToggleTheme,
   onSetFontSize,
+  onUpdateLanguage,
   onUnlock,
   onNext
 }) => {
@@ -50,6 +55,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
+  const t = translations[language].reader_view;
   const paragraphs = chapter.content.split('\n\n');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const readingTime = Math.ceil(chapter.content.split(' ').length / 200);
@@ -192,9 +198,22 @@ const ReaderView: React.FC<ReaderViewProps> = ({
                 </button>
               </div>
 
+              {/* Language switcher */}
+              <div className="flex items-center gap-3">
+                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Language</span>
+                <select
+                  value={language}
+                  onChange={(e) => onUpdateLanguage(e.target.value as Language)}
+                  className="bg-themed-muted rounded-lg text-themed-sub text-xs font-medium hover:bg-themed border border-themed transition-all px-3 py-1.5"
+                >
+                  <option value="en">English</option>
+                  <option value="fr">French</option>
+                </select>
+              </div>
+
               {/* Font size */}
               <div className="flex items-center gap-3">
-                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">Font</span>
+                <span className="text-themed-muted text-[10px] font-bold uppercase tracking-wider">{t.font}</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onSetFontSize(Math.max(14, fontSize - 2))}
@@ -309,41 +328,43 @@ const ReaderView: React.FC<ReaderViewProps> = ({
                   <div className="absolute top-[-50%] left-[50%] -translate-x-1/2 w-[80%] h-[80%] bg-amber-50/20 rounded-full blur-[80px]" />
                 </div>
                 <div className="relative z-10">
-                  <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                    <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <h3 className="font-display text-2xl text-themed font-medium mb-2">
-                    {isTeaser ? 'The journey continues...' : 'Unlock the full chapter'}
+                    {isTeaser ? 'The journey continues...' : 'Unlock this chapter'}
                   </h3>
                   <p className="text-themed-sub font-serif italic text-base mb-2 max-w-md mx-auto">
-                    {accessMessage}
+                    {accessMessage || 'Watch a short video to continue reading this chapter for free.'}
                   </p>
                   <p className="text-themed-muted text-xs mb-6">
                     Join 2,847+ readers who are transforming their lives through this wisdom.
                   </p>
                   <button
                     onClick={onUnlock}
-                    className="cta-premium text-white px-10 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all hover:shadow-2xl hover:-translate-y-0.5 inline-flex items-center gap-2"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all hover:shadow-2xl hover:-translate-y-0.5 inline-flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Unlock Full Book &mdash; ${PRICE_PER_BOOK}
+                    Watch Ad to Unlock
                   </button>
                   <div className="mt-4 flex items-center justify-center gap-6 text-themed-muted text-[10px] uppercase tracking-wider font-bold">
                     <span className="flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                      All {book.chapters.length} chapters
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                      7-day refund
-                    </span>
-                    <span className="flex items-center gap-1">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      Lifetime access
+                      ~30 sec video
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                      100% Free
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                      Permanent unlock
                     </span>
                   </div>
                 </div>

@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { Chapter, Book, FREE_CHAPTERS, PRICE_PER_BOOK } from '../types';
+import { Chapter, Book, FREE_CHAPTERS } from '../types';
 
 interface LibraryViewProps {
   book: Book;
   completedIds: number[];
   isBookPurchased: boolean;
   freeChapters: number;
+  unlockedChapterIds: number[];
   onSelect: (chapter: Chapter) => void;
   onChat: () => void;
   onBack: () => void;
-  onUnlock: () => void;
+  onUnlock: (chapterId: number) => void;
 }
 
 const accentMap: Record<string, { bg: string; text: string; badge: string; border: string }> = {
@@ -20,7 +21,7 @@ const accentMap: Record<string, { bg: string; text: string; badge: string; borde
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-500', border: 'border-emerald-200' },
 };
 
-const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPurchased, freeChapters, onSelect, onChat, onBack, onUnlock }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPurchased, freeChapters, unlockedChapterIds, onSelect, onChat, onBack, onUnlock }) => {
   const [search, setSearch] = useState('');
   const colors = accentMap[book.accentColor] || accentMap.stone;
   const progress = book.chapters.length > 0 ? Math.round((completedIds.length / book.chapters.length) * 100) : 0;
@@ -31,10 +32,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
   );
 
   const getChapterStatus = (chapter: Chapter) => {
+    // Book purchased = full access
     if (isBookPurchased) return 'accessible';
-    if (chapter.id <= 2) return 'free';
-    if (chapter.id === 3) return 'partial';
-    if (chapter.id === 4) return 'teaser';
+    // First 5 chapters are free
+    if (chapter.id <= freeChapters) return 'free';
+    // Check if unlocked via ad
+    if (unlockedChapterIds.includes(chapter.id)) return 'unlocked';
+    // Otherwise locked
     return 'locked';
   };
 
@@ -113,16 +117,25 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
           />
         </div>
 
-        {/* Unlock banner */}
+        {/* Info banner */}
         {!isBookPurchased && (
-          <div className="mb-8 bg-gradient-to-r from-stone-800 to-stone-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mb-8 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
-              <h3 className="text-white font-display text-lg font-medium">Unlock All {book.chapters.length} Chapters</h3>
-              <p className="text-stone-400 text-sm">One-time payment &middot; Lifetime access &middot; PDF download included</p>
+              <h3 className="text-white font-display text-lg font-medium">Unlock Chapters for Free</h3>
+              <p className="text-white/80 text-sm">Watch short videos to unlock chapters beyond the first {freeChapters}</p>
             </div>
-            <button onClick={onUnlock} className="bg-white text-stone-800 px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-stone-100 transition-all whitespace-nowrap">
-              Buy for ${PRICE_PER_BOOK}
-            </button>
+            <div className="flex items-center gap-3 text-white text-xs">
+              <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                </svg>
+                <span className="font-medium">~30s per chapter</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                <span className="font-medium">Permanent</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -132,12 +145,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
             const status = getChapterStatus(chapter);
             const isCompleted = completedIds.includes(chapter.id);
             const isLocked = status === 'locked';
+            const isUnlocked = status === 'unlocked';
 
             return (
               <div
                 key={chapter.id}
-                onClick={() => !isLocked ? onSelect(chapter) : onUnlock()}
-                className={`group cursor-pointer animate-fadeIn ${isLocked ? 'opacity-70' : ''}`}
+                onClick={() => isLocked ? onUnlock(chapter.id) : onSelect(chapter)}
+                className={`group cursor-pointer animate-fadeIn ${isLocked ? 'opacity-80' : ''}`}
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div className={`bg-themed-card border border-themed rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-300 ${isLocked ? '' : 'hover:-translate-y-0.5'}`}>
@@ -160,12 +174,15 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
                     {/* Status badge */}
                     <div className="absolute top-3 right-3">
                       {status === 'free' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Free</span>}
-                      {status === 'partial' && <span className="bg-amber-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Preview</span>}
-                      {status === 'teaser' && <span className="bg-orange-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Teaser</span>}
-                      {status === 'locked' && (
-                        <span className="bg-stone-700 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
-                          Locked
+                      {status === 'accessible' && <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">Owned</span>}
+                      {isUnlocked && <span className="bg-amber-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/></svg>
+                        Unlocked
+                      </span>}
+                      {isLocked && (
+                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                          Watch Ad
                         </span>
                       )}
                     </div>
@@ -173,7 +190,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
                     {/* Lock overlay */}
                     {isLocked && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <svg className="w-8 h-8 text-white/50" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-full p-3 shadow-lg">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -182,6 +204,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ book, completedIds, isBookPur
                   <div className="p-4">
                     <h3 className="text-themed font-medium text-sm mb-1 leading-snug">{chapter.title}</h3>
                     <p className="text-themed-muted text-xs leading-relaxed line-clamp-2">{chapter.summary}</p>
+                    {isLocked && (
+                      <p className="text-amber-500 text-[10px] font-bold uppercase tracking-wider mt-2">Tap to unlock</p>
+                    )}
                   </div>
                 </div>
               </div>
