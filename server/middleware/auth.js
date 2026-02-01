@@ -30,7 +30,7 @@ export function requireAuth(req, res, next) {
     
     // Update last active time
     try {
-      db.prepare('UPDATE users SET last_active_at = datetime("now") WHERE id = ?').run(decoded.id);
+      db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(decoded.id);
     } catch (e) { /* ignore */ }
     
     next();
@@ -94,7 +94,7 @@ export function requireAdmin(req, res, next) {
     req.isAdmin = true;
     
     // Update last active time
-    db.prepare('UPDATE users SET last_active_at = datetime("now") WHERE id = ?').run(decoded.id);
+    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(decoded.id);
     
     next();
   } catch {

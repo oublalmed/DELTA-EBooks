@@ -84,7 +84,7 @@ router.post('/login', (req, res) => {
     }
 
     // Update last active
-    db.prepare('UPDATE users SET last_active_at = datetime("now") WHERE id = ?').run(user.id);
+    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
 
     const token = generateToken(user);
     const { password_hash, ...safeUser } = user;
@@ -348,7 +348,7 @@ router.post('/google', async (req, res) => {
 
       if (user) {
         // Link existing email account with Google
-        db.prepare('UPDATE users SET google_id = ?, updated_at = datetime("now") WHERE id = ?')
+        db.prepare("UPDATE users SET google_id = ?, updated_at = datetime('now') WHERE id = ?")
           .run(googleId, user.id);
         console.log(`Linked Google account to existing user: ${email}`);
       } else {
@@ -374,7 +374,7 @@ router.post('/google', async (req, res) => {
     }
 
     // Update last active
-    db.prepare('UPDATE users SET last_active_at = datetime("now") WHERE id = ?').run(user.id);
+    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
 
     // Generate tokens
     const token = generateToken(user);
@@ -438,7 +438,7 @@ router.post('/refresh', (req, res) => {
     const newRefreshToken = generateRefreshToken(user);
 
     // Update stored refresh token (token rotation)
-    db.prepare('UPDATE users SET refresh_token = ?, last_active_at = datetime("now") WHERE id = ?')
+    db.prepare("UPDATE users SET refresh_token = ?, last_active_at = datetime('now') WHERE id = ?")
       .run(newRefreshToken, user.id);
 
     const { password_hash, refresh_token, ...safeUser } = user;
