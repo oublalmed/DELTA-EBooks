@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { generateBookPDF } from '../services/pdf.js';
 
 const router = Router();
 
@@ -391,5 +392,114 @@ router.get('/pdf', requireAuth, (req, res) => {
     res.status(500).json({ error: 'Failed to get PDF download statuses' });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// DOWNLOAD PDF - Generates and serves the PDF file
+// ══════════════════════════════════════════════════════════════════
+router.get('/pdf/:bookId/download', requireAuth, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+
+    // Check if user has unlocked this book's PDF
+    const progress = db.prepare(`
+      SELECT * FROM pdf_download_progress
+      WHERE user_id = ? AND book_id = ?
+    `).get(req.user.id, bookId);
+
+    if (!progress || progress.is_unlocked !== 1) {
+      return res.status(403).json({ 
+        error: 'PDF not unlocked. Please watch the required ads first.',
+        adsWatched: progress?.ads_watched || 0,
+        adsRequired: PDF_ADS_REQUIRED
+      });
+    }
+
+    // Get book data - books are stored in frontend constants, 
+    // so we'll use a simple structure for now
+    // In production, you'd fetch this from the database or an API
+    console.log('Getting book data for:', bookId);
+    const bookData = getBookData(bookId);
+    
+    if (!bookData) {
+      console.log('Book not found:', bookId);
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    console.log('Book found:', bookData.title);
+
+    // Generate PDF with watermark
+    console.log('Generating PDF...');
+    const pdfBuffer = await generateBookPDF({
+      title: bookData.title,
+      subtitle: bookData.subtitle,
+      author: bookData.author,
+      chapters: bookData.chapters,
+      watermarkEmail: req.user.email
+    });
+    console.log('PDF generated, size:', pdfBuffer.length);
+
+    // Record download
+    db.prepare(`
+      INSERT INTO user_activity (user_id, activity_type, book_id, metadata)
+      VALUES (?, 'pdf_download', ?, ?)
+    `).run(req.user.id, bookId, JSON.stringify({ email: req.user.email }));
+
+    // Serve PDF
+    const filename = `${bookData.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('PDF download error:', error);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+// Helper function to get book data
+// This maps book IDs to their content
+// In a production app, this would come from a database
+function getBookData(bookId) {
+  const books = {
+    'relationship-guide': {
+      title: 'The Relationship Guide',
+      subtitle: 'Building Meaningful Connections',
+      author: 'DELTA Wisdom',
+      chapters: [
+        { title: 'Understanding Connection', subtitle: 'The Foundation', content: 'Human connection is at the core of our existence...', reflectionPrompt: 'What does connection mean to you?' },
+        { title: 'Communication Basics', subtitle: 'Speaking and Listening', content: 'Effective communication is a two-way street...', reflectionPrompt: 'How can you improve your listening?' },
+        { title: 'Building Trust', subtitle: 'The Cornerstone', content: 'Trust is built through consistent actions...', reflectionPrompt: 'What builds trust in your relationships?' },
+        { title: 'Handling Conflict', subtitle: 'Growing Through Challenges', content: 'Conflict is natural in any relationship...', reflectionPrompt: 'How do you typically handle conflict?' },
+        { title: 'Deepening Bonds', subtitle: 'Creating Lasting Connections', content: 'Deep relationships require ongoing investment...', reflectionPrompt: 'What can you do to deepen your relationships?' }
+      ]
+    },
+    'self-mastery': {
+      title: 'Self Mastery',
+      subtitle: 'The Path to Personal Excellence',
+      author: 'DELTA Wisdom',
+      chapters: [
+        { title: 'Know Thyself', subtitle: 'Self-Awareness', content: 'The journey to mastery begins with understanding yourself...', reflectionPrompt: 'What do you know about yourself?' },
+        { title: 'Discipline', subtitle: 'Building Habits', content: 'Discipline is the bridge between goals and accomplishment...', reflectionPrompt: 'Where could you apply more discipline?' },
+        { title: 'Mindset', subtitle: 'Growth vs Fixed', content: 'Your mindset shapes your reality...', reflectionPrompt: 'Is your mindset helping or hindering you?' },
+        { title: 'Resilience', subtitle: 'Bouncing Back', content: 'Resilience is not about avoiding failure...', reflectionPrompt: 'How do you recover from setbacks?' },
+        { title: 'Purpose', subtitle: 'Finding Your Why', content: 'Purpose gives meaning to our actions...', reflectionPrompt: 'What drives you forward?' }
+      ]
+    },
+    'financial-wisdom': {
+      title: 'Financial Wisdom',
+      subtitle: 'Building Wealth Mindfully',
+      author: 'DELTA Wisdom',
+      chapters: [
+        { title: 'Money Mindset', subtitle: 'Your Relationship with Money', content: 'How you think about money shapes your financial reality...', reflectionPrompt: 'What is your current money mindset?' },
+        { title: 'Budgeting Basics', subtitle: 'Managing Your Resources', content: 'A budget is a plan for your money...', reflectionPrompt: 'How do you currently manage your finances?' },
+        { title: 'Saving Strategies', subtitle: 'Building Your Safety Net', content: 'Saving is the foundation of financial security...', reflectionPrompt: 'What are your saving goals?' },
+        { title: 'Investing Introduction', subtitle: 'Growing Your Wealth', content: 'Investing puts your money to work...', reflectionPrompt: 'What do you want to learn about investing?' },
+        { title: 'Financial Freedom', subtitle: 'The Ultimate Goal', content: 'Financial freedom means having choices...', reflectionPrompt: 'What does financial freedom mean to you?' }
+      ]
+    }
+  };
+  
+  return books[bookId] || null;
+}
 
 export default router;

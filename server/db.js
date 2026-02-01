@@ -258,6 +258,7 @@ db.exec(`
 
   -- ══════════════════════════════════════════════════════════════════
   -- NEW: PDF Download Progress (5 ads required per book)
+  -- NOTE: book_id is a TEXT reference to frontend constants, not a FK
   -- ══════════════════════════════════════════════════════════════════
   CREATE TABLE IF NOT EXISTS pdf_download_progress (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -270,8 +271,7 @@ db.exec(`
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, book_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   -- Indexes for performance
