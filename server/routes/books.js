@@ -26,10 +26,10 @@ const mapBookRow = (book, chapters = []) => ({
 });
 
 // ── GET /api/books ──
-router.get('/', (_req, res) => {
+router.get('/', async (_req, res) => {
   try {
-    const books = db.prepare('SELECT * FROM books ORDER BY created_at').all();
-    const chapters = db.prepare('SELECT * FROM chapters ORDER BY sort_order, id').all();
+    const books = await db.prepare('SELECT * FROM books ORDER BY created_at').all();
+    const chapters = await db.prepare('SELECT * FROM chapters ORDER BY sort_order, id').all();
     const chaptersByBook = chapters.reduce((acc, chapter) => {
       acc[chapter.book_id] = acc[chapter.book_id] || [];
       acc[chapter.book_id].push(mapChapterRow(chapter));
@@ -44,13 +44,13 @@ router.get('/', (_req, res) => {
 });
 
 // ── GET /api/books/:bookId ──
-router.get('/:bookId', (req, res) => {
+router.get('/:bookId', async (req, res) => {
   try {
-    const book = db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.bookId);
+    const book = await db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.bookId);
     if (!book) {
       return res.status(404).json({ error: 'Book not found' });
     }
-    const chapters = db.prepare(
+    const chapters = await db.prepare(
       'SELECT * FROM chapters WHERE book_id = ? ORDER BY sort_order, id'
     ).all(book.id);
 
@@ -62,9 +62,9 @@ router.get('/:bookId', (req, res) => {
 });
 
 // ── GET /api/books/:bookId/chapters/:chapterId ──
-router.get('/:bookId/chapters/:chapterId', (req, res) => {
+router.get('/:bookId/chapters/:chapterId', async (req, res) => {
   try {
-    const chapter = db.prepare(
+    const chapter = await db.prepare(
       'SELECT * FROM chapters WHERE book_id = ? AND id = ?'
     ).get(req.params.bookId, parseInt(req.params.chapterId));
 

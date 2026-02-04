@@ -59,7 +59,7 @@ Format the response as JSON with the following structure:
   ]
 }`;
 
-    const genRecord = db.prepare(`
+    const genRecord = await db.prepare(`
       INSERT INTO ai_generations (type, prompt, model, status)
       VALUES (?, ?, ?, ?)
     `).run('ebook', prompt, 'gemini-pro', 'processing');
@@ -88,7 +88,7 @@ Format the response as JSON with the following structure:
       }
 
       // Create internal ebook
-      const ebookResult = db.prepare(`
+      const ebookResult = await db.prepare(`
         INSERT INTO internal_ebooks (title, subtitle, description, content, category, status, linked_book_id, ai_generated, ai_model, ai_prompt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
@@ -109,7 +109,7 @@ Format the response as JSON with the following structure:
       // Create chapters if parsed successfully
       if (parsedContent.chapters && Array.isArray(parsedContent.chapters)) {
         for (const chapter of parsedContent.chapters) {
-          db.prepare(`
+          await db.prepare(`
             INSERT INTO internal_ebook_chapters (ebook_id, chapter_number, title, content, notes, status)
             VALUES (?, ?, ?, ?, ?, ?)
           `).run(
@@ -124,12 +124,12 @@ Format the response as JSON with the following structure:
       }
 
       // Update generation record
-      db.prepare(`
+      await db.prepare(`
         UPDATE ai_generations SET
           result = ?,
           status = 'completed',
           internal_ebook_id = ?,
-          completed_at = datetime('now')
+          completed_at = NOW()
         WHERE id = ?
       `).run(JSON.stringify(parsedContent), internalEbookId, generationId);
 
@@ -144,11 +144,11 @@ Format the response as JSON with the following structure:
     } catch (aiError) {
       console.error('AI generation error:', aiError);
       
-      db.prepare(`
+      await db.prepare(`
         UPDATE ai_generations SET
           status = 'failed',
           error_message = ?,
-          completed_at = datetime('now')
+          completed_at = NOW()
         WHERE id = ?
       `).run(aiError.message, generationId);
 
@@ -195,20 +195,20 @@ Write in a flowing, narrative style that keeps readers engaged.`;
 
     // If linked to an internal ebook, save the chapter
     if (internal_ebook_id) {
-      const existingChapter = db.prepare(`
+      const existingChapter = await db.prepare(`
         SELECT id FROM internal_ebook_chapters 
         WHERE ebook_id = ? AND chapter_number = ?
       `).get(internal_ebook_id, chapter_number || 1);
 
       if (existingChapter) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE internal_ebook_chapters SET
             content = ?,
-            updated_at = datetime('now')
+            updated_at = NOW()
           WHERE id = ?
         `).run(content, existingChapter.id);
       } else {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO internal_ebook_chapters (ebook_id, chapter_number, title, content, status)
           VALUES (?, ?, ?, ?, ?)
         `).run(internal_ebook_id, chapter_number || 1, `Chapter ${chapter_number || 1}`, content, 'draft');
@@ -216,9 +216,9 @@ Write in a flowing, narrative style that keeps readers engaged.`;
     }
 
     // Log generation
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO ai_generations (type, prompt, model, result, status, internal_ebook_id, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, NOW())
     `).run('chapter', prompt, 'gemini-pro', content, 'completed', internal_ebook_id || null);
 
     res.json({

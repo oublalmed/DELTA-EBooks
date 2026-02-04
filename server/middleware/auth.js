@@ -17,7 +17,7 @@ if (process.env.NODE_ENV === 'production') {
 /**
  * Required auth middleware — rejects if no valid token
  */
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -30,7 +30,7 @@ export function requireAuth(req, res, next) {
     
     // Update last active time
     try {
-      db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(decoded.id);
+      await db.prepare('UPDATE users SET last_active_at = NOW() WHERE id = ?').run(decoded.id);
     } catch (e) { /* ignore */ }
     
     next();
@@ -63,7 +63,7 @@ export function optionalAuth(req, res, next) {
  * Admin-only middleware — requires admin role
  * SECURITY: This is the gatekeeper for all admin routes
  */
-export function requireAdmin(req, res, next) {
+export async function requireAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -74,7 +74,7 @@ export function requireAdmin(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     
     // Double-check role from database for security
-    const user = db.prepare('SELECT id, email, role, status FROM users WHERE id = ?').get(decoded.id);
+    const user = await db.prepare('SELECT id, email, role, status FROM users WHERE id = ?').get(decoded.id);
     
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -94,7 +94,7 @@ export function requireAdmin(req, res, next) {
     req.isAdmin = true;
     
     // Update last active time
-    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(decoded.id);
+    await db.prepare('UPDATE users SET last_active_at = NOW() WHERE id = ?').run(decoded.id);
     
     next();
   } catch {
@@ -105,7 +105,7 @@ export function requireAdmin(req, res, next) {
 /**
  * Check if user is admin (non-blocking, just sets flag)
  */
-export function checkAdmin(req, res, next) {
+export async function checkAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
   req.isAdmin = false;
   
@@ -116,7 +116,7 @@ export function checkAdmin(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(decoded.id);
+    const user = await db.prepare('SELECT role FROM users WHERE id = ?').get(decoded.id);
     req.isAdmin = user?.role === 'admin';
   } catch { /* ignore */ }
   next();

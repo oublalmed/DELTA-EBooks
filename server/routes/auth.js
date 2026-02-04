@@ -24,11 +24,11 @@ function generateResetToken() {
 function getTokenExpiration(hours = 1) {
   const expiration = new Date();
   expiration.setHours(expiration.getHours() + hours);
-  return expiration.toISOString();
+  return expiration;
 }
 
 // ── POST /api/auth/register ──
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
@@ -39,17 +39,17 @@ router.post('/register', (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
     const passwordHash = bcrypt.hashSync(password, 12);
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)'
     ).run(email.toLowerCase().trim(), passwordHash, name || '');
 
-    const user = db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const user = await db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
     const token = generateToken(user);
 
     res.status(201).json({ user, token });
@@ -60,7 +60,7 @@ router.post('/register', (req, res) => {
 });
 
 // ── POST /api/auth/login ──
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -68,7 +68,7 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -84,7 +84,7 @@ router.post('/login', (req, res) => {
     }
 
     // Update last active
-    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
+    await db.prepare('UPDATE users SET last_active_at = NOW() WHERE id = ?').run(user.id);
 
     const token = generateToken(user);
     const { password_hash, ...safeUser } = user;
@@ -97,9 +97,9 @@ router.post('/login', (req, res) => {
 });
 
 // ── GET /api/auth/me ──
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
   try {
-    const user = db.prepare('SELECT id, email, name, role, status, created_at FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT id, email, name, role, status, created_at FROM users WHERE id = ?').get(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -110,12 +110,12 @@ router.get('/me', requireAuth, (req, res) => {
     }
 
     // Get purchased books
-    const purchases = db.prepare(
+    const purchases = await db.prepare(
       'SELECT book_id, purchased_at FROM purchases WHERE user_id = ? AND status = ?'
     ).all(req.user.id, 'completed');
 
     // Get download count
-    const downloadCount = db.prepare(
+    const downloadCount = await db.prepare(
       'SELECT COUNT(*) as count FROM download_history WHERE user_id = ?'
     ).get(req.user.id);
 
@@ -133,7 +133,7 @@ router.get('/me', requireAuth, (req, res) => {
 });
 
 // PATCH /api/auth/me
-router.patch('/me', requireAuth, (req, res) => {
+router.patch('/me', requireAuth, async (req, res) => {
   try {
     const { name, language } = req.body;
     if (name === undefined && language === undefined) {
@@ -141,13 +141,13 @@ router.patch('/me', requireAuth, (req, res) => {
     }
 
     if (name !== undefined) {
-      db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, req.user.id);
+      await db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, req.user.id);
     }
     if (language !== undefined) {
-      db.prepare('UPDATE users SET language = ? WHERE id = ?').run(language, req.user.id);
+      await db.prepare('UPDATE users SET language = ? WHERE id = ?').run(language, req.user.id);
     }
 
-    const updatedUser = db.prepare('SELECT id, email, name, language, created_at FROM users WHERE id = ?').get(req.user.id);
+    const updatedUser = await db.prepare('SELECT id, email, name, language, created_at FROM users WHERE id = ?').get(req.user.id);
     res.json(updatedUser);
   } catch (err) {
     console.error('Profile update error:', err);
@@ -164,7 +164,7 @@ router.patch('/me', requireAuth, (req, res) => {
  * Request a password reset token
  * Rate limited: 3 attempts per hour
  */
-router.post('/forgot-password', passwordResetLimiter, (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -172,7 +172,7 @@ router.post('/forgot-password', passwordResetLimiter, (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    const user = db.prepare('SELECT id, email, name FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const user = await db.prepare('SELECT id, email, name FROM users WHERE email = ?').get(email.toLowerCase().trim());
     
     // Always return success to prevent email enumeration attacks
     if (!user) {
@@ -189,7 +189,7 @@ router.post('/forgot-password', passwordResetLimiter, (req, res) => {
     // Store hashed token in database (never store plain token)
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     
-    db.prepare(`
+    await db.prepare(`
       UPDATE users 
       SET password_reset_token = ?, password_reset_expires = ? 
       WHERE id = ?
@@ -206,7 +206,7 @@ router.post('/forgot-password', passwordResetLimiter, (req, res) => {
         success: true, 
         message: 'Password reset token generated.',
         devResetToken: resetToken, // Only in dev mode
-        expiresAt: resetExpires
+        expiresAt: resetExpires.toISOString()
       });
     }
 
@@ -229,7 +229,7 @@ router.post('/forgot-password', passwordResetLimiter, (req, res) => {
  * POST /api/auth/reset-password
  * Reset password using token
  */
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
 
@@ -245,7 +245,7 @@ router.post('/reset-password', (req, res) => {
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     // Find user with matching email and valid token
-    const user = db.prepare(`
+    const user = await db.prepare(`
       SELECT id, email, password_reset_token, password_reset_expires 
       FROM users 
       WHERE email = ? AND password_reset_token = ?
@@ -261,7 +261,7 @@ router.post('/reset-password', (req, res) => {
     
     if (now > expires) {
       // Clear expired token
-      db.prepare(`
+      await db.prepare(`
         UPDATE users 
         SET password_reset_token = NULL, password_reset_expires = NULL 
         WHERE id = ?
@@ -272,9 +272,9 @@ router.post('/reset-password', (req, res) => {
     // Hash new password and update
     const passwordHash = bcrypt.hashSync(newPassword, 12);
     
-    db.prepare(`
+    await db.prepare(`
       UPDATE users 
-      SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL, updated_at = datetime('now')
+      SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL, updated_at = NOW()
       WHERE id = ?
     `).run(passwordHash, user.id);
 
@@ -340,22 +340,22 @@ router.post('/google', async (req, res) => {
     }
 
     // Check if user exists with this Google ID
-    let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
+    let user = await db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
 
     if (!user) {
       // Check if user exists with this email (link accounts)
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
+      user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
 
       if (user) {
         // Link existing email account with Google
-        db.prepare("UPDATE users SET google_id = ?, updated_at = datetime('now') WHERE id = ?")
+        await db.prepare('UPDATE users SET google_id = ?, updated_at = NOW() WHERE id = ?')
           .run(googleId, user.id);
         console.log(`Linked Google account to existing user: ${email}`);
       } else {
         // Create new user with Google account
-        const result = db.prepare(`
+        const result = await db.prepare(`
           INSERT INTO users (email, password_hash, name, google_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, NOW(), NOW())
         `).run(
           email.toLowerCase(),
           '', // No password for Google-only accounts
@@ -363,7 +363,7 @@ router.post('/google', async (req, res) => {
           googleId
         );
 
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+        user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
         console.log(`Created new user via Google: ${email}`);
       }
     }
@@ -374,14 +374,14 @@ router.post('/google', async (req, res) => {
     }
 
     // Update last active
-    db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
+    await db.prepare('UPDATE users SET last_active_at = NOW() WHERE id = ?').run(user.id);
 
     // Generate tokens
     const token = generateToken(user);
     const refreshToken = generateRefreshToken(user);
 
     // Store refresh token
-    db.prepare('UPDATE users SET refresh_token = ? WHERE id = ?').run(refreshToken, user.id);
+    await db.prepare('UPDATE users SET refresh_token = ? WHERE id = ?').run(refreshToken, user.id);
 
     const { password_hash, refresh_token, ...safeUser } = user;
 
@@ -407,7 +407,7 @@ router.post('/google', async (req, res) => {
  * POST /api/auth/refresh
  * Refresh access token using refresh token
  */
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
@@ -422,7 +422,7 @@ router.post('/refresh', (req, res) => {
     }
 
     // Check if token matches stored token
-    const user = db.prepare('SELECT * FROM users WHERE id = ? AND refresh_token = ?')
+    const user = await db.prepare('SELECT * FROM users WHERE id = ? AND refresh_token = ?')
       .get(decoded.id, refreshToken);
 
     if (!user) {
@@ -438,7 +438,7 @@ router.post('/refresh', (req, res) => {
     const newRefreshToken = generateRefreshToken(user);
 
     // Update stored refresh token (token rotation)
-    db.prepare("UPDATE users SET refresh_token = ?, last_active_at = datetime('now') WHERE id = ?")
+    await db.prepare('UPDATE users SET refresh_token = ?, last_active_at = NOW() WHERE id = ?')
       .run(newRefreshToken, user.id);
 
     const { password_hash, refresh_token, ...safeUser } = user;
@@ -460,10 +460,10 @@ router.post('/refresh', (req, res) => {
  * POST /api/auth/logout
  * Invalidate refresh token
  */
-router.post('/logout', requireAuth, (req, res) => {
+router.post('/logout', requireAuth, async (req, res) => {
   try {
     // Clear refresh token
-    db.prepare('UPDATE users SET refresh_token = NULL WHERE id = ?').run(req.user.id);
+    await db.prepare('UPDATE users SET refresh_token = NULL WHERE id = ?').run(req.user.id);
     
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {

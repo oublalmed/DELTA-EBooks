@@ -8,17 +8,17 @@ const router = Router();
 // ADMIN SETUP ROUTE (One-time, secure setup for first admin)
 // This route is only available when no admin exists
 // ══════════════════════════════════════════════════════════════════
-router.post('/setup', requireAuth, (req, res) => {
+router.post('/setup', requireAuth, async (req, res) => {
   try {
     // Check if an admin already exists
-    const existingAdmin = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
+    const existingAdmin = await db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
     
     if (existingAdmin) {
       return res.status(403).json({ error: 'Admin already exists. Setup is disabled.' });
     }
     
     // Promote the current authenticated user to admin
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', req.user.id);
+    await db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', req.user.id);
     
     console.log(`[ADMIN SETUP] User ${req.user.id} (${req.user.email}) promoted to admin`);
     
@@ -40,37 +40,37 @@ router.use(requireAdmin);
 // DASHBOARD OVERVIEW
 // ══════════════════════════════════════════════════════════════════
 
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   try {
     // Get overview statistics
     const stats = {
-      totalUsers: db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('client')?.count || 0,
-      activeUsers: db.prepare(`SELECT COUNT(*) as count FROM users WHERE role = ? AND last_active_at > datetime('now', '-7 days')`).get('client')?.count || 0,
-      totalBooks: db.prepare('SELECT COUNT(*) as count FROM books').get()?.count || 0,
-      internalEbooks: db.prepare('SELECT COUNT(*) as count FROM internal_ebooks').get()?.count || 0,
-      totalAds: db.prepare('SELECT COUNT(*) as count FROM ads').get()?.count || 0,
-      activeAds: db.prepare('SELECT COUNT(*) as count FROM ads WHERE status = ?').get('active')?.count || 0,
-      unreadMessages: db.prepare('SELECT COUNT(*) as count FROM client_messages WHERE status = ?').get('unread')?.count || 0,
-      pendingIdeas: db.prepare('SELECT COUNT(*) as count FROM book_ideas WHERE status = ?').get('pending')?.count || 0,
-      totalImpressions: db.prepare('SELECT SUM(impressions) as total FROM ads').get()?.total || 0,
-      totalClicks: db.prepare('SELECT SUM(clicks) as total FROM ads').get()?.total || 0,
+      totalUsers: (await db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('client'))?.count || 0,
+      activeUsers: (await db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ? AND last_active_at > DATE_SUB(NOW(), INTERVAL 7 DAY)').get('client'))?.count || 0,
+      totalBooks: (await db.prepare('SELECT COUNT(*) as count FROM books').get())?.count || 0,
+      internalEbooks: (await db.prepare('SELECT COUNT(*) as count FROM internal_ebooks').get())?.count || 0,
+      totalAds: (await db.prepare('SELECT COUNT(*) as count FROM ads').get())?.count || 0,
+      activeAds: (await db.prepare('SELECT COUNT(*) as count FROM ads WHERE status = ?').get('active'))?.count || 0,
+      unreadMessages: (await db.prepare('SELECT COUNT(*) as count FROM client_messages WHERE status = ?').get('unread'))?.count || 0,
+      pendingIdeas: (await db.prepare('SELECT COUNT(*) as count FROM book_ideas WHERE status = ?').get('pending'))?.count || 0,
+      totalImpressions: (await db.prepare('SELECT SUM(impressions) as total FROM ads').get())?.total || 0,
+      totalClicks: (await db.prepare('SELECT SUM(clicks) as total FROM ads').get())?.total || 0,
     };
 
     // Recent activity
-    const recentUsers = db.prepare(`
+    const recentUsers = await db.prepare(`
       SELECT id, email, name, created_at, last_active_at
       FROM users WHERE role = 'client'
       ORDER BY created_at DESC LIMIT 5
     `).all();
 
-    const recentMessages = db.prepare(`
+    const recentMessages = await db.prepare(`
       SELECT cm.*, u.email, u.name as user_name
       FROM client_messages cm
       JOIN users u ON cm.user_id = u.id
       ORDER BY cm.created_at DESC LIMIT 5
     `).all();
 
-    const recentIdeas = db.prepare(`
+    const recentIdeas = await db.prepare(`
       SELECT bi.*, u.email, u.name as user_name
       FROM book_ideas bi
       JOIN users u ON bi.user_id = u.id
@@ -94,7 +94,7 @@ router.get('/dashboard', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get all ads
-router.get('/ads', (req, res) => {
+router.get('/ads', async (req, res) => {
   try {
     const { status, type, placement } = req.query;
     
@@ -116,7 +116,7 @@ router.get('/ads', (req, res) => {
     
     query += ' ORDER BY priority DESC, created_at DESC';
     
-    const ads = db.prepare(query).all(...params);
+    const ads = await db.prepare(query).all(...params);
     res.json(ads);
   } catch (error) {
     console.error('Get ads error:', error);
@@ -125,26 +125,26 @@ router.get('/ads', (req, res) => {
 });
 
 // Get single ad with stats
-router.get('/ads/:id', (req, res) => {
+router.get('/ads/:id', async (req, res) => {
   try {
-    const ad = db.prepare('SELECT * FROM ads WHERE id = ?').get(req.params.id);
+    const ad = await db.prepare('SELECT * FROM ads WHERE id = ?').get(req.params.id);
     if (!ad) {
       return res.status(404).json({ error: 'Ad not found' });
     }
 
     // Get daily stats for last 30 days
-    const impressionStats = db.prepare(`
+    const impressionStats = await db.prepare(`
       SELECT DATE(created_at) as date, COUNT(*) as count
       FROM ad_impressions
-      WHERE ad_id = ? AND created_at > datetime('now', '-30 days')
+      WHERE ad_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
       GROUP BY DATE(created_at)
       ORDER BY date
     `).all(req.params.id);
 
-    const clickStats = db.prepare(`
+    const clickStats = await db.prepare(`
       SELECT DATE(created_at) as date, COUNT(*) as count
       FROM ad_clicks
-      WHERE ad_id = ? AND created_at > datetime('now', '-30 days')
+      WHERE ad_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
       GROUP BY DATE(created_at)
       ORDER BY date
     `).all(req.params.id);
@@ -157,7 +157,7 @@ router.get('/ads/:id', (req, res) => {
 });
 
 // Create ad
-router.post('/ads', (req, res) => {
+router.post('/ads', async (req, res) => {
   try {
     const { name, type, placement, content_url, image_url, link_url, cta_text, status, priority, start_date, end_date, target_books } = req.body;
 
@@ -165,7 +165,7 @@ router.post('/ads', (req, res) => {
       return res.status(400).json({ error: 'Ad name is required' });
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO ads (name, type, placement, content_url, image_url, link_url, cta_text, status, priority, start_date, end_date, target_books)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -183,7 +183,7 @@ router.post('/ads', (req, res) => {
       target_books ? JSON.stringify(target_books) : null
     );
 
-    const ad = db.prepare('SELECT * FROM ads WHERE id = ?').get(result.lastInsertRowid);
+    const ad = await db.prepare('SELECT * FROM ads WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(ad);
   } catch (error) {
     console.error('Create ad error:', error);
@@ -192,11 +192,11 @@ router.post('/ads', (req, res) => {
 });
 
 // Update ad
-router.put('/ads/:id', (req, res) => {
+router.put('/ads/:id', async (req, res) => {
   try {
     const { name, type, placement, content_url, image_url, link_url, cta_text, status, priority, start_date, end_date, target_books } = req.body;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE ads SET
         name = COALESCE(?, name),
         type = COALESCE(?, type),
@@ -210,14 +210,14 @@ router.put('/ads/:id', (req, res) => {
         start_date = ?,
         end_date = ?,
         target_books = ?,
-        updated_at = datetime('now')
+        updated_at = NOW()
       WHERE id = ?
     `).run(
       name, type, placement, content_url, image_url, link_url, cta_text, status, priority,
       start_date, end_date, target_books ? JSON.stringify(target_books) : null, req.params.id
     );
 
-    const ad = db.prepare('SELECT * FROM ads WHERE id = ?').get(req.params.id);
+    const ad = await db.prepare('SELECT * FROM ads WHERE id = ?').get(req.params.id);
     res.json(ad);
   } catch (error) {
     console.error('Update ad error:', error);
@@ -226,9 +226,9 @@ router.put('/ads/:id', (req, res) => {
 });
 
 // Delete ad
-router.delete('/ads/:id', (req, res) => {
+router.delete('/ads/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM ads WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM ads WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete ad error:', error);
@@ -237,15 +237,15 @@ router.delete('/ads/:id', (req, res) => {
 });
 
 // Toggle ad status (quick action)
-router.post('/ads/:id/toggle', (req, res) => {
+router.post('/ads/:id/toggle', async (req, res) => {
   try {
-    const ad = db.prepare('SELECT status FROM ads WHERE id = ?').get(req.params.id);
+    const ad = await db.prepare('SELECT status FROM ads WHERE id = ?').get(req.params.id);
     if (!ad) {
       return res.status(404).json({ error: 'Ad not found' });
     }
 
     const newStatus = ad.status === 'active' ? 'paused' : 'active';
-    db.prepare('UPDATE ads SET status = ?, updated_at = datetime("now") WHERE id = ?').run(newStatus, req.params.id);
+    await db.prepare('UPDATE ads SET status = ?, updated_at = NOW() WHERE id = ?').run(newStatus, req.params.id);
 
     res.json({ id: req.params.id, status: newStatus });
   } catch (error) {
@@ -259,7 +259,7 @@ router.post('/ads/:id/toggle', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get all clients
-router.get('/clients', (req, res) => {
+router.get('/clients', async (req, res) => {
   try {
     const { status, search, sort, order } = req.query;
     
@@ -287,7 +287,7 @@ router.get('/clients', (req, res) => {
     const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
     query += ` ORDER BY u.${sortCol} ${sortOrder}`;
 
-    const clients = db.prepare(query).all(...params);
+    const clients = await db.prepare(query).all(...params);
     res.json(clients);
   } catch (error) {
     console.error('Get clients error:', error);
@@ -296,9 +296,9 @@ router.get('/clients', (req, res) => {
 });
 
 // Get single client with full activity
-router.get('/clients/:id', (req, res) => {
+router.get('/clients/:id', async (req, res) => {
   try {
-    const client = db.prepare(`
+    const client = await db.prepare(`
       SELECT * FROM users WHERE id = ? AND role = 'client'
     `).get(req.params.id);
 
@@ -307,7 +307,7 @@ router.get('/clients/:id', (req, res) => {
     }
 
     // Reading progress
-    const readingProgress = db.prepare(`
+    const readingProgress = await db.prepare(`
       SELECT up.*, b.title as book_title
       FROM user_progress up
       JOIN books b ON up.book_id = b.id
@@ -316,7 +316,7 @@ router.get('/clients/:id', (req, res) => {
     `).all(req.params.id);
 
     // Reading sessions
-    const sessions = db.prepare(`
+    const sessions = await db.prepare(`
       SELECT rs.*, b.title as book_title
       FROM reading_sessions rs
       JOIN books b ON rs.book_id = b.id
@@ -326,7 +326,7 @@ router.get('/clients/:id', (req, res) => {
     `).all(req.params.id);
 
     // Activity log
-    const activity = db.prepare(`
+    const activity = await db.prepare(`
       SELECT * FROM user_activity
       WHERE user_id = ?
       ORDER BY created_at DESC
@@ -334,14 +334,14 @@ router.get('/clients/:id', (req, res) => {
     `).all(req.params.id);
 
     // Messages from this client
-    const messages = db.prepare(`
+    const messages = await db.prepare(`
       SELECT * FROM client_messages
       WHERE user_id = ?
       ORDER BY created_at DESC
     `).all(req.params.id);
 
     // Ideas from this client
-    const ideas = db.prepare(`
+    const ideas = await db.prepare(`
       SELECT * FROM book_ideas
       WHERE user_id = ?
       ORDER BY created_at DESC
@@ -365,7 +365,7 @@ router.get('/clients/:id', (req, res) => {
 });
 
 // Update client status (suspend, activate, restrict)
-router.put('/clients/:id/status', (req, res) => {
+router.put('/clients/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -373,7 +373,7 @@ router.put('/clients/:id/status', (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    db.prepare('UPDATE users SET status = ?, updated_at = datetime("now") WHERE id = ? AND role = ?')
+    await db.prepare('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ? AND role = ?')
       .run(status, req.params.id, 'client');
 
     res.json({ success: true, status });
@@ -388,9 +388,9 @@ router.put('/clients/:id/status', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get all public books with stats
-router.get('/ebooks', (req, res) => {
+router.get('/ebooks', async (req, res) => {
   try {
-    const books = db.prepare(`
+    const books = await db.prepare(`
       SELECT b.*,
         (SELECT COUNT(*) FROM user_progress WHERE book_id = b.id AND completed = 1) as total_reads,
         (SELECT COUNT(DISTINCT user_id) FROM user_progress WHERE book_id = b.id) as unique_readers,
@@ -411,7 +411,7 @@ router.get('/ebooks', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get all internal ebooks
-router.get('/internal-ebooks', (req, res) => {
+router.get('/internal-ebooks', async (req, res) => {
   try {
     const { category, status, linked } = req.query;
     
@@ -439,7 +439,7 @@ router.get('/internal-ebooks', (req, res) => {
 
     query += ' ORDER BY ie.updated_at DESC';
 
-    const ebooks = db.prepare(query).all(...params);
+    const ebooks = await db.prepare(query).all(...params);
     res.json(ebooks);
   } catch (error) {
     console.error('Get internal ebooks error:', error);
@@ -448,9 +448,9 @@ router.get('/internal-ebooks', (req, res) => {
 });
 
 // Get single internal ebook with chapters
-router.get('/internal-ebooks/:id', (req, res) => {
+router.get('/internal-ebooks/:id', async (req, res) => {
   try {
-    const ebook = db.prepare(`
+    const ebook = await db.prepare(`
       SELECT ie.*, b.title as linked_book_title
       FROM internal_ebooks ie
       LEFT JOIN books b ON ie.linked_book_id = b.id
@@ -461,7 +461,7 @@ router.get('/internal-ebooks/:id', (req, res) => {
       return res.status(404).json({ error: 'Internal ebook not found' });
     }
 
-    const chapters = db.prepare(`
+    const chapters = await db.prepare(`
       SELECT * FROM internal_ebook_chapters
       WHERE ebook_id = ?
       ORDER BY chapter_number
@@ -475,7 +475,7 @@ router.get('/internal-ebooks/:id', (req, res) => {
 });
 
 // Create internal ebook
-router.post('/internal-ebooks', (req, res) => {
+router.post('/internal-ebooks', async (req, res) => {
   try {
     const { title, subtitle, description, content, category, status, linked_book_id, cover_image, notes, tags } = req.body;
 
@@ -483,7 +483,7 @@ router.post('/internal-ebooks', (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO internal_ebooks (title, subtitle, description, content, category, status, linked_book_id, cover_image, notes, tags)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -492,7 +492,7 @@ router.post('/internal-ebooks', (req, res) => {
       cover_image || null, notes || null, tags ? JSON.stringify(tags) : null
     );
 
-    const ebook = db.prepare('SELECT * FROM internal_ebooks WHERE id = ?').get(result.lastInsertRowid);
+    const ebook = await db.prepare('SELECT * FROM internal_ebooks WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(ebook);
   } catch (error) {
     console.error('Create internal ebook error:', error);
@@ -501,11 +501,11 @@ router.post('/internal-ebooks', (req, res) => {
 });
 
 // Update internal ebook
-router.put('/internal-ebooks/:id', (req, res) => {
+router.put('/internal-ebooks/:id', async (req, res) => {
   try {
     const { title, subtitle, description, content, category, status, linked_book_id, cover_image, notes, tags } = req.body;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE internal_ebooks SET
         title = COALESCE(?, title),
         subtitle = ?,
@@ -518,14 +518,14 @@ router.put('/internal-ebooks/:id', (req, res) => {
         notes = ?,
         tags = ?,
         version = version + 1,
-        updated_at = datetime('now')
+        updated_at = NOW()
       WHERE id = ?
     `).run(
       title, subtitle, description, content, category, status, linked_book_id,
       cover_image, notes, tags ? JSON.stringify(tags) : null, req.params.id
     );
 
-    const ebook = db.prepare('SELECT * FROM internal_ebooks WHERE id = ?').get(req.params.id);
+    const ebook = await db.prepare('SELECT * FROM internal_ebooks WHERE id = ?').get(req.params.id);
     res.json(ebook);
   } catch (error) {
     console.error('Update internal ebook error:', error);
@@ -534,9 +534,9 @@ router.put('/internal-ebooks/:id', (req, res) => {
 });
 
 // Delete internal ebook
-router.delete('/internal-ebooks/:id', (req, res) => {
+router.delete('/internal-ebooks/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM internal_ebooks WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM internal_ebooks WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete internal ebook error:', error);
@@ -545,16 +545,16 @@ router.delete('/internal-ebooks/:id', (req, res) => {
 });
 
 // Add chapter to internal ebook
-router.post('/internal-ebooks/:id/chapters', (req, res) => {
+router.post('/internal-ebooks/:id/chapters', async (req, res) => {
   try {
     const { chapter_number, title, content, notes, status } = req.body;
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO internal_ebook_chapters (ebook_id, chapter_number, title, content, notes, status)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(req.params.id, chapter_number || 1, title || 'New Chapter', content || '', notes || null, status || 'draft');
 
-    const chapter = db.prepare('SELECT * FROM internal_ebook_chapters WHERE id = ?').get(result.lastInsertRowid);
+    const chapter = await db.prepare('SELECT * FROM internal_ebook_chapters WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(chapter);
   } catch (error) {
     console.error('Add chapter error:', error);
@@ -567,7 +567,7 @@ router.post('/internal-ebooks/:id/chapters', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get all messages
-router.get('/messages', (req, res) => {
+router.get('/messages', async (req, res) => {
   try {
     const { status, type, priority } = req.query;
 
@@ -594,7 +594,7 @@ router.get('/messages', (req, res) => {
 
     query += ' ORDER BY cm.created_at DESC';
 
-    const messages = db.prepare(query).all(...params);
+    const messages = await db.prepare(query).all(...params);
     res.json(messages);
   } catch (error) {
     console.error('Get messages error:', error);
@@ -603,9 +603,9 @@ router.get('/messages', (req, res) => {
 });
 
 // Get single message
-router.get('/messages/:id', (req, res) => {
+router.get('/messages/:id', async (req, res) => {
   try {
-    const message = db.prepare(`
+    const message = await db.prepare(`
       SELECT cm.*, u.email, u.name as user_name
       FROM client_messages cm
       JOIN users u ON cm.user_id = u.id
@@ -618,7 +618,7 @@ router.get('/messages/:id', (req, res) => {
 
     // Mark as read
     if (message.status === 'unread') {
-      db.prepare('UPDATE client_messages SET status = ? WHERE id = ?').run('read', req.params.id);
+      await db.prepare('UPDATE client_messages SET status = ? WHERE id = ?').run('read', req.params.id);
       message.status = 'read';
     }
 
@@ -630,7 +630,7 @@ router.get('/messages/:id', (req, res) => {
 });
 
 // Reply to message
-router.post('/messages/:id/reply', (req, res) => {
+router.post('/messages/:id/reply', async (req, res) => {
   try {
     const { reply } = req.body;
 
@@ -638,16 +638,16 @@ router.post('/messages/:id/reply', (req, res) => {
       return res.status(400).json({ error: 'Reply is required' });
     }
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE client_messages SET
         admin_reply = ?,
-        replied_at = datetime('now'),
+        replied_at = NOW(),
         status = 'replied',
-        updated_at = datetime('now')
+        updated_at = NOW()
       WHERE id = ?
     `).run(reply, req.params.id);
 
-    const message = db.prepare('SELECT * FROM client_messages WHERE id = ?').get(req.params.id);
+    const message = await db.prepare('SELECT * FROM client_messages WHERE id = ?').get(req.params.id);
     res.json(message);
   } catch (error) {
     console.error('Reply to message error:', error);
@@ -656,19 +656,19 @@ router.post('/messages/:id/reply', (req, res) => {
 });
 
 // Update message status/priority
-router.put('/messages/:id', (req, res) => {
+router.put('/messages/:id', async (req, res) => {
   try {
     const { status, priority } = req.body;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE client_messages SET
         status = COALESCE(?, status),
         priority = COALESCE(?, priority),
-        updated_at = datetime('now')
+        updated_at = NOW()
       WHERE id = ?
     `).run(status, priority, req.params.id);
 
-    const message = db.prepare('SELECT * FROM client_messages WHERE id = ?').get(req.params.id);
+    const message = await db.prepare('SELECT * FROM client_messages WHERE id = ?').get(req.params.id);
     res.json(message);
   } catch (error) {
     console.error('Update message error:', error);
@@ -677,9 +677,9 @@ router.put('/messages/:id', (req, res) => {
 });
 
 // Delete message
-router.delete('/messages/:id', (req, res) => {
+router.delete('/messages/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM client_messages WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM client_messages WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete message error:', error);
@@ -688,7 +688,7 @@ router.delete('/messages/:id', (req, res) => {
 });
 
 // Get all book ideas
-router.get('/ideas', (req, res) => {
+router.get('/ideas', async (req, res) => {
   try {
     const { status, priority } = req.query;
 
@@ -711,7 +711,7 @@ router.get('/ideas', (req, res) => {
 
     query += ' ORDER BY bi.priority DESC, bi.created_at DESC';
 
-    const ideas = db.prepare(query).all(...params);
+    const ideas = await db.prepare(query).all(...params);
     res.json(ideas);
   } catch (error) {
     console.error('Get ideas error:', error);
@@ -720,20 +720,20 @@ router.get('/ideas', (req, res) => {
 });
 
 // Update idea status/priority/notes
-router.put('/ideas/:id', (req, res) => {
+router.put('/ideas/:id', async (req, res) => {
   try {
     const { status, priority, admin_notes } = req.body;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE book_ideas SET
         status = COALESCE(?, status),
         priority = COALESCE(?, priority),
         admin_notes = ?,
-        updated_at = datetime('now')
+        updated_at = NOW()
       WHERE id = ?
     `).run(status, priority, admin_notes, req.params.id);
 
-    const idea = db.prepare('SELECT * FROM book_ideas WHERE id = ?').get(req.params.id);
+    const idea = await db.prepare('SELECT * FROM book_ideas WHERE id = ?').get(req.params.id);
     res.json(idea);
   } catch (error) {
     console.error('Update idea error:', error);
@@ -742,9 +742,9 @@ router.put('/ideas/:id', (req, res) => {
 });
 
 // Delete idea
-router.delete('/ideas/:id', (req, res) => {
+router.delete('/ideas/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM book_ideas WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM book_ideas WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete idea error:', error);
@@ -757,9 +757,9 @@ router.delete('/ideas/:id', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get AI generation history
-router.get('/ai-generations', (req, res) => {
+router.get('/ai-generations', async (req, res) => {
   try {
-    const generations = db.prepare(`
+    const generations = await db.prepare(`
       SELECT ag.*, ie.title as ebook_title
       FROM ai_generations ag
       LEFT JOIN internal_ebooks ie ON ag.internal_ebook_id = ie.id
@@ -778,45 +778,46 @@ router.get('/ai-generations', (req, res) => {
 // ANALYTICS
 // ══════════════════════════════════════════════════════════════════
 
-router.get('/analytics', (req, res) => {
+router.get('/analytics', async (req, res) => {
   try {
     const { days = 30 } = req.query;
+    const daysInt = Math.max(1, Number.parseInt(days, 10) || 30);
 
     // Daily user stats
-    const userStats = db.prepare(`
+    const userStats = await db.prepare(`
       SELECT DATE(created_at) as date, COUNT(*) as new_users
       FROM users
-      WHERE created_at > datetime('now', '-${parseInt(days)} days')
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL ${daysInt} DAY)
       GROUP BY DATE(created_at)
       ORDER BY date
     `).all();
 
     // Daily reading stats
-    const readingStats = db.prepare(`
+    const readingStats = await db.prepare(`
       SELECT DATE(started_at) as date, 
         COUNT(*) as sessions,
         SUM(duration_seconds) as total_time
       FROM reading_sessions
-      WHERE started_at > datetime('now', '-${parseInt(days)} days')
+      WHERE started_at > DATE_SUB(NOW(), INTERVAL ${daysInt} DAY)
       GROUP BY DATE(started_at)
       ORDER BY date
     `).all();
 
     // Ad performance
-    const adStats = db.prepare(`
+    const adStats = await db.prepare(`
       SELECT DATE(created_at) as date, COUNT(*) as impressions
       FROM ad_impressions
-      WHERE created_at > datetime('now', '-${parseInt(days)} days')
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL ${daysInt} DAY)
       GROUP BY DATE(created_at)
       ORDER BY date
     `).all();
 
     // Top books by reads
-    const topBooks = db.prepare(`
+    const topBooks = await db.prepare(`
       SELECT b.id, b.title, COUNT(*) as reads
       FROM reading_sessions rs
       JOIN books b ON rs.book_id = b.id
-      WHERE rs.started_at > datetime('now', '-${parseInt(days)} days')
+      WHERE rs.started_at > DATE_SUB(NOW(), INTERVAL ${daysInt} DAY)
       GROUP BY b.id
       ORDER BY reads DESC
       LIMIT 10

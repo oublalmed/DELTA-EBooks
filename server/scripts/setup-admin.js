@@ -21,8 +21,9 @@ if (!email) {
 }
 
 try {
+  await db.init();
   // Check if user exists
-  const user = db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get(email.toLowerCase());
+  const user = await db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get(email.toLowerCase());
 
   if (!user) {
     console.error(`❌ User not found: ${email}`);
@@ -36,7 +37,7 @@ try {
   }
 
   // Promote to admin
-  db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', user.id);
+  await db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', user.id);
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════════════╗');

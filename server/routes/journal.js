@@ -50,7 +50,7 @@ const VALID_MOODS = [
 // ══════════════════════════════════════════════════════════════════
 // GET /api/journal - Get all journal entries for the user
 // ══════════════════════════════════════════════════════════════════
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { month, year, category, mood } = req.query;
     
@@ -79,7 +79,7 @@ router.get('/', requireAuth, (req, res) => {
     
     query += ' ORDER BY date DESC, created_at DESC';
     
-    const entries = db.prepare(query).all(...params);
+    const entries = await db.prepare(query).all(...params);
     
     // Parse tags from JSON string
     const parsed = entries.map(e => ({
@@ -98,13 +98,13 @@ router.get('/', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/journal/calendar/:year/:month - Get calendar data for a month
 // ══════════════════════════════════════════════════════════════════
-router.get('/calendar/:year/:month', requireAuth, (req, res) => {
+router.get('/calendar/:year/:month', requireAuth, async (req, res) => {
   try {
     const { year, month } = req.params;
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
     
-    const entries = db.prepare(`
+    const entries = await db.prepare(`
       SELECT date, mood, mood_rating, title, category 
       FROM journal_entries 
       WHERE user_id = ? AND date >= ? AND date <= ?
@@ -135,21 +135,21 @@ router.get('/calendar/:year/:month', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/journal/analytics - Get mood analytics
 // ══════════════════════════════════════════════════════════════════
-router.get('/analytics', requireAuth, (req, res) => {
+router.get('/analytics', requireAuth, async (req, res) => {
   try {
     const { period } = req.query; // 'week', 'month', 'year'
     
     let dateFilter = '';
     if (period === 'week') {
-      dateFilter = "AND date >= date('now', '-7 days')";
+      dateFilter = 'AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
     } else if (period === 'month') {
-      dateFilter = "AND date >= date('now', '-30 days')";
+      dateFilter = 'AND date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
     } else if (period === 'year') {
-      dateFilter = "AND date >= date('now', '-365 days')";
+      dateFilter = 'AND date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)';
     }
     
     // Mood distribution
-    const moodCounts = db.prepare(`
+    const moodCounts = await db.prepare(`
       SELECT mood, COUNT(*) as count 
       FROM journal_entries 
       WHERE user_id = ? AND mood IS NOT NULL ${dateFilter}
@@ -157,7 +157,7 @@ router.get('/analytics', requireAuth, (req, res) => {
     `).all(req.user.id);
     
     // Category distribution
-    const categoryCounts = db.prepare(`
+    const categoryCounts = await db.prepare(`
       SELECT category, COUNT(*) as count 
       FROM journal_entries 
       WHERE user_id = ? ${dateFilter}
@@ -165,14 +165,14 @@ router.get('/analytics', requireAuth, (req, res) => {
     `).all(req.user.id);
     
     // Average mood rating over time
-    const avgRating = db.prepare(`
+    const avgRating = await db.prepare(`
       SELECT AVG(mood_rating) as avg_rating 
       FROM journal_entries 
       WHERE user_id = ? AND mood_rating IS NOT NULL ${dateFilter}
     `).get(req.user.id);
     
     // Entry streak
-    const streakData = db.prepare(`
+    const streakData = await db.prepare(`
       SELECT date FROM journal_entries 
       WHERE user_id = ? 
       ORDER BY date DESC
@@ -189,7 +189,7 @@ router.get('/analytics', requireAuth, (req, res) => {
     }
     
     // Total entries
-    const totalEntries = db.prepare(`
+    const totalEntries = await db.prepare(`
       SELECT COUNT(*) as count FROM journal_entries WHERE user_id = ?
     `).get(req.user.id);
     
@@ -209,9 +209,9 @@ router.get('/analytics', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/journal/:id - Get a specific journal entry
 // ══════════════════════════════════════════════════════════════════
-router.get('/:id', requireAuth, (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const entry = db.prepare(`
+    const entry = await db.prepare(`
       SELECT * FROM journal_entries WHERE id = ? AND user_id = ?
     `).get(req.params.id, req.user.id);
     
@@ -233,7 +233,7 @@ router.get('/:id', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // POST /api/journal - Create a new journal entry
 // ══════════════════════════════════════════════════════════════════
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { 
     date, 
     title, 
@@ -264,7 +264,7 @@ router.post('/', requireAuth, (req, res) => {
   }
   
   try {
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO journal_entries 
       (user_id, date, title, category, content, mood, mood_rating, tags, image_url, is_public)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -281,7 +281,7 @@ router.post('/', requireAuth, (req, res) => {
       is_public ? 1 : 0
     );
     
-    const newEntry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(result.lastInsertRowid);
+    const newEntry = await db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(result.lastInsertRowid);
     
     res.status(201).json({
       ...newEntry,
@@ -297,7 +297,7 @@ router.post('/', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // PUT /api/journal/:id - Update a journal entry
 // ══════════════════════════════════════════════════════════════════
-router.put('/:id', requireAuth, (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   const { 
     title, 
     category, 
@@ -311,7 +311,7 @@ router.put('/:id', requireAuth, (req, res) => {
   
   try {
     // Check ownership
-    const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND user_id = ?')
+    const existing = await db.prepare('SELECT * FROM journal_entries WHERE id = ? AND user_id = ?')
       .get(req.params.id, req.user.id);
     
     if (!existing) {
@@ -368,14 +368,14 @@ router.put('/:id', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'No fields to update.' });
     }
     
-    updates.push("updated_at = datetime('now')");
+    updates.push('updated_at = NOW()');
     params.push(req.params.id, req.user.id);
     
-    db.prepare(`
+    await db.prepare(`
       UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND user_id = ?
     `).run(...params);
     
-    const updated = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(req.params.id);
+    const updated = await db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(req.params.id);
     
     res.json({
       ...updated,
@@ -391,9 +391,9 @@ router.put('/:id', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // DELETE /api/journal/:id - Delete a journal entry
 // ══════════════════════════════════════════════════════════════════
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const result = db.prepare('DELETE FROM journal_entries WHERE id = ? AND user_id = ?')
+    const result = await db.prepare('DELETE FROM journal_entries WHERE id = ? AND user_id = ?')
       .run(req.params.id, req.user.id);
     
     if (result.changes === 0) {
@@ -412,12 +412,12 @@ router.delete('/:id', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // GET /api/journal/public/feed - Get public journal entries
-router.get('/public/feed', optionalAuth, (req, res) => {
+router.get('/public/feed', optionalAuth, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    const entries = db.prepare(`
+    const entries = await db.prepare(`
       SELECT 
         j.*,
         u.name as author_name,
@@ -429,15 +429,22 @@ router.get('/public/feed', optionalAuth, (req, res) => {
       ORDER BY j.created_at DESC
       LIMIT ? OFFSET ?
     `).all(parseInt(limit), offset);
+
+    const likedEntryIds = new Set();
+    if (req.user && entries.length) {
+      const entryIds = entries.map(e => e.id);
+      const placeholders = entryIds.map(() => '?').join(',');
+      const likedRows = await db.prepare(
+        `SELECT entry_id FROM journal_likes WHERE user_id = ? AND entry_id IN (${placeholders})`
+      ).all(req.user.id, ...entryIds);
+      likedRows.forEach(row => likedEntryIds.add(row.entry_id));
+    }
     
     const parsed = entries.map(e => ({
       ...e,
       tags: e.tags ? JSON.parse(e.tags) : [],
       is_public: true,
-      is_liked: req.user ? Boolean(
-        db.prepare('SELECT 1 FROM journal_likes WHERE entry_id = ? AND user_id = ?')
-          .get(e.id, req.user.id)
-      ) : false
+      is_liked: req.user ? likedEntryIds.has(e.id) : false
     }));
     
     res.json(parsed);
@@ -448,9 +455,9 @@ router.get('/public/feed', optionalAuth, (req, res) => {
 });
 
 // POST /api/journal/:id/like - Like a public entry
-router.post('/:id/like', requireAuth, (req, res) => {
+router.post('/:id/like', requireAuth, async (req, res) => {
   try {
-    const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
+    const entry = await db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
       .get(req.params.id);
     
     if (!entry) {
@@ -458,17 +465,17 @@ router.post('/:id/like', requireAuth, (req, res) => {
     }
     
     // Check if already liked
-    const existing = db.prepare('SELECT * FROM journal_likes WHERE entry_id = ? AND user_id = ?')
+    const existing = await db.prepare('SELECT * FROM journal_likes WHERE entry_id = ? AND user_id = ?')
       .get(req.params.id, req.user.id);
     
     if (existing) {
       // Unlike
-      db.prepare('DELETE FROM journal_likes WHERE entry_id = ? AND user_id = ?')
+      await db.prepare('DELETE FROM journal_likes WHERE entry_id = ? AND user_id = ?')
         .run(req.params.id, req.user.id);
       res.json({ liked: false });
     } else {
       // Like
-      db.prepare('INSERT INTO journal_likes (entry_id, user_id) VALUES (?, ?)')
+      await db.prepare('INSERT INTO journal_likes (entry_id, user_id) VALUES (?, ?)')
         .run(req.params.id, req.user.id);
       res.json({ liked: true });
     }
@@ -479,16 +486,16 @@ router.post('/:id/like', requireAuth, (req, res) => {
 });
 
 // GET /api/journal/:id/comments - Get comments for a public entry
-router.get('/:id/comments', optionalAuth, (req, res) => {
+router.get('/:id/comments', optionalAuth, async (req, res) => {
   try {
-    const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
+    const entry = await db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
       .get(req.params.id);
     
     if (!entry) {
       return res.status(404).json({ error: 'Public entry not found.' });
     }
     
-    const comments = db.prepare(`
+    const comments = await db.prepare(`
       SELECT c.*, u.name as author_name
       FROM journal_comments c
       JOIN users u ON c.user_id = u.id
@@ -504,7 +511,7 @@ router.get('/:id/comments', optionalAuth, (req, res) => {
 });
 
 // POST /api/journal/:id/comments - Add a comment to a public entry
-router.post('/:id/comments', requireAuth, (req, res) => {
+router.post('/:id/comments', requireAuth, async (req, res) => {
   const { content } = req.body;
   
   if (!content || !content.trim()) {
@@ -512,18 +519,18 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   }
   
   try {
-    const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
+    const entry = await db.prepare('SELECT * FROM journal_entries WHERE id = ? AND is_public = 1')
       .get(req.params.id);
     
     if (!entry) {
       return res.status(404).json({ error: 'Public entry not found.' });
     }
     
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO journal_comments (entry_id, user_id, content) VALUES (?, ?, ?)
     `).run(req.params.id, req.user.id, content.trim());
     
-    const newComment = db.prepare(`
+    const newComment = await db.prepare(`
       SELECT c.*, u.name as author_name
       FROM journal_comments c
       JOIN users u ON c.user_id = u.id
@@ -538,9 +545,9 @@ router.post('/:id/comments', requireAuth, (req, res) => {
 });
 
 // DELETE /api/journal/comments/:commentId - Delete own comment
-router.delete('/comments/:commentId', requireAuth, (req, res) => {
+router.delete('/comments/:commentId', requireAuth, async (req, res) => {
   try {
-    const result = db.prepare('DELETE FROM journal_comments WHERE id = ? AND user_id = ?')
+    const result = await db.prepare('DELETE FROM journal_comments WHERE id = ? AND user_id = ?')
       .run(req.params.commentId, req.user.id);
     
     if (result.changes === 0) {

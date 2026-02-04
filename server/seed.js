@@ -103,19 +103,37 @@ const BOOKS = [
   },
 ];
 
+await db.init();
+
 // Seed books
-const insertBook = db.prepare(`
-  INSERT OR REPLACE INTO books (id, title, subtitle, author, description, price, currency, cover_image, accent_color, total_chapters)
-  VALUES (@id, @title, @subtitle, @author, @description, @price, @currency, @cover_image, @accent_color, @total_chapters)
-`);
+for (const book of BOOKS) {
+  await db.prepare(`
+    INSERT INTO books (id, title, subtitle, author, description, price, currency, cover_image, accent_color, total_chapters)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      title = VALUES(title),
+      subtitle = VALUES(subtitle),
+      author = VALUES(author),
+      description = VALUES(description),
+      price = VALUES(price),
+      currency = VALUES(currency),
+      cover_image = VALUES(cover_image),
+      accent_color = VALUES(accent_color),
+      total_chapters = VALUES(total_chapters)
+  `).run(
+    book.id,
+    book.title,
+    book.subtitle,
+    book.author,
+    book.description,
+    book.price,
+    book.currency,
+    book.cover_image,
+    book.accent_color,
+    book.total_chapters
+  );
+}
 
-const seedBooks = db.transaction(() => {
-  for (const book of BOOKS) {
-    insertBook.run(book);
-  }
-});
-
-seedBooks();
 console.log(`Seeded ${BOOKS.length} books.`);
 
 // Note: Chapters are served from the frontend constants.tsx file

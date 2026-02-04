@@ -79,13 +79,15 @@ app.use('/api/progress', progressRoutes);
 // ── Email subscription (simple) ──
 import db from './db.js';
 
-app.post('/api/subscribe', express.json(), (req, res) => {
+await db.init();
+
+app.post('/api/subscribe', express.json(), async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' });
     }
-    db.prepare('INSERT OR IGNORE INTO email_subscribers (email, source) VALUES (?, ?)')
+    await db.prepare('INSERT IGNORE INTO email_subscribers (email, source) VALUES (?, ?)')
       .run(email.toLowerCase().trim(), 'website');
     res.json({ success: true, message: 'Subscribed successfully!' });
   } catch (err) {
