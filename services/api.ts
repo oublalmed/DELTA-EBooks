@@ -1,6 +1,11 @@
 /**
  * API client for DELTA EBooks backend.
  * All server-side communication goes through this module.
+ *
+ * Features:
+ * - Automatic token refresh on 401 responses
+ * - Secure token storage via localStorage
+ * - Retry logic for transient failures
  */
 
 const API_BASE = '/api';
@@ -9,9 +14,65 @@ function getToken(): string | null {
   return localStorage.getItem('delta_token');
 }
 
+function getRefreshToken(): string | null {
+  return localStorage.getItem('delta_refresh_token');
+}
+
+function setTokens(token: string, refreshToken?: string) {
+  localStorage.setItem('delta_token', token);
+  if (refreshToken) {
+    localStorage.setItem('delta_refresh_token', refreshToken);
+  }
+}
+
+function clearTokens() {
+  localStorage.removeItem('delta_token');
+  localStorage.removeItem('delta_refresh_token');
+}
+
+// Token refresh state to avoid concurrent refreshes
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  // Deduplicate concurrent refresh attempts
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) {
+        clearTokens();
+        return false;
+      }
+
+      const data = await res.json();
+      if (data.token) {
+        setTokens(data.token, data.refreshToken);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _isRetry = false,
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -28,12 +89,24 @@ async function request<T>(
     headers,
   });
 
+  // Attempt automatic token refresh on 401 (but only once)
+  if (res.status === 401 && !_isRetry && !path.includes('/auth/login') && !path.includes('/auth/refresh')) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return request<T>(path, options, true);
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }));
     const error = new Error(body.error || `HTTP ${res.status}`);
-    (error as Error & { code?: string }).code = body.code;
+    (error as Error & { code?: string; status?: number }).code = body.code;
+    (error as Error & { status?: number }).status = res.status;
     throw error;
   }
+
+  // Handle 204 No Content
+  if (res.status === 204) return undefined as T;
 
   return res.json();
 }
@@ -84,6 +157,25 @@ export async function updateProfile(data: { name?: string; language?: string }) 
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
+
+export async function refreshAccessToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) throw new Error('No refresh token');
+  const data = await request<{ token: string; refreshToken: string; user: any }>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  });
+  setTokens(data.token, data.refreshToken);
+  return data;
+}
+
+export async function logout() {
+  try {
+    await request<void>('/auth/logout', { method: 'POST' });
+  } finally {
+    clearTokens();
+  }
 }
 
 // ── Expression Space ──
@@ -165,13 +257,15 @@ export async function getJournalEntries(params?: {
   year?: number;
   category?: string;
   mood?: string;
+  book_id?: string;
 }) {
   const searchParams = new URLSearchParams();
   if (params?.month) searchParams.set('month', String(params.month));
   if (params?.year) searchParams.set('year', String(params.year));
   if (params?.category) searchParams.set('category', params.category);
   if (params?.mood) searchParams.set('mood', params.mood);
-  
+  if (params?.book_id) searchParams.set('book_id', params.book_id);
+
   const query = searchParams.toString();
   return request<JournalEntryFull[]>(`/journal${query ? `?${query}` : ''}`);
 }
@@ -245,6 +339,39 @@ export async function deleteJournalComment(commentId: number) {
   return request<void>(`/journal/comments/${commentId}`, {
     method: 'DELETE',
   });
+}
+
+// ── Journal Export / Download ──
+
+/**
+ * Download journal entries as a file.
+ * Opens a download in the browser for PDF/TXT/MD formats.
+ */
+export async function downloadJournal(format: 'pdf' | 'txt' | 'md', bookId?: string) {
+  const token = getToken();
+  const path = bookId ? `/journal/export/${bookId}` : '/journal/export/all';
+  const url = `${API_BASE}${path}?format=${format}`;
+
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Download failed' }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+
+  // Trigger browser download
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const ext = format === 'md' ? 'md' : format;
+  const prefix = bookId ? `journal-${bookId}` : 'my-journal';
+  a.download = `${prefix}.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 
 // ══════════════════════════════════════════════════════════════════

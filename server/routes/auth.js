@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import db from '../db.js';
 import { generateToken, generateRefreshToken, requireAuth, verifyRefreshToken } from '../middleware/auth.js';
 import { passwordResetLimiter } from '../middleware/rateLimiter.js';
+import { sendPasswordResetEmail } from '../services/email.js';
 
 const router = Router();
 
@@ -39,7 +40,14 @@ router.post('/register', (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
@@ -47,12 +55,21 @@ router.post('/register', (req, res) => {
     const passwordHash = bcrypt.hashSync(password, 12);
     const result = db.prepare(
       'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)'
-    ).run(email.toLowerCase().trim(), passwordHash, name || '');
+    ).run(normalizedEmail, passwordHash, name || '');
 
-    const user = db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const user = db.prepare('SELECT id, email, name, role, status, language, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
     const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-    res.status(201).json({ user, token });
+    // Store refresh token
+    db.prepare('UPDATE users SET refresh_token = ? WHERE id = ?').run(refreshToken, user.id);
+
+    res.status(201).json({
+      success: true,
+      user,
+      token,
+      refreshToken,
+    });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed' });
@@ -78,6 +95,11 @@ router.post('/login', (req, res) => {
       return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
     }
 
+    // If user registered via Google only (no password), tell them
+    if (!user.password_hash && user.google_id) {
+      return res.status(401).json({ error: 'This account uses Google Sign-In. Please use the Google button to log in.' });
+    }
+
     const valid = bcrypt.compareSync(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -87,9 +109,19 @@ router.post('/login', (req, res) => {
     db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
 
     const token = generateToken(user);
-    const { password_hash, ...safeUser } = user;
+    const refreshToken = generateRefreshToken(user);
 
-    res.json({ user: safeUser, token });
+    // Store refresh token
+    db.prepare('UPDATE users SET refresh_token = ? WHERE id = ?').run(refreshToken, user.id);
+
+    const { password_hash, refresh_token, password_reset_token, password_reset_expires, email_verification_token, ...safeUser } = user;
+
+    res.json({
+      success: true,
+      user: safeUser,
+      token,
+      refreshToken,
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -164,7 +196,7 @@ router.patch('/me', requireAuth, (req, res) => {
  * Request a password reset token
  * Rate limited: 3 attempts per hour
  */
-router.post('/forgot-password', passwordResetLimiter, (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -195,29 +227,28 @@ router.post('/forgot-password', passwordResetLimiter, (req, res) => {
       WHERE id = ?
     `).run(hashedToken, resetExpires, user.id);
 
-    // In production, send email with reset link
-    // For development, return the token directly
+    // Send reset email (works in both dev and production)
+    const emailSent = await sendPasswordResetEmail({
+      email: user.email,
+      name: user.name,
+      resetToken,
+      expiresAt: resetExpires,
+    });
+
     const isDev = process.env.NODE_ENV !== 'production';
-    
+
+    const response = {
+      success: true,
+      message: 'If an account with that email exists, a password reset code has been sent.',
+    };
+
+    // In development, also return the token directly for easier testing
     if (isDev) {
-      // Development mode: return token for testing
-      console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
-      return res.json({ 
-        success: true, 
-        message: 'Password reset token generated.',
-        devResetToken: resetToken, // Only in dev mode
-        expiresAt: resetExpires
-      });
+      response.devResetToken = resetToken;
+      response.expiresAt = resetExpires;
     }
 
-    // Production mode: would send email here
-    // TODO: Integrate email service (SendGrid, Mailgun, etc.)
-    console.log(`[PROD] Password reset requested for ${email}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'If an account with that email exists, a password reset link has been sent.' 
-    });
+    res.json(response);
 
   } catch (err) {
     console.error('Forgot password error:', err);
@@ -269,23 +300,30 @@ router.post('/reset-password', (req, res) => {
       return res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
     }
 
-    // Hash new password and update
+    // Hash new password and update — also invalidate refresh token (force re-login on other devices)
     const passwordHash = bcrypt.hashSync(newPassword, 12);
-    
+
     db.prepare(`
-      UPDATE users 
-      SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL, updated_at = datetime('now')
+      UPDATE users
+      SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL,
+          refresh_token = NULL, updated_at = datetime('now')
       WHERE id = ?
     `).run(passwordHash, user.id);
 
-    // Generate new auth token for automatic login
-    const authToken = generateToken(user);
+    // Generate fresh tokens for automatic login
+    const fullUser = db.prepare('SELECT id, email, name, role, status FROM users WHERE id = ?').get(user.id);
+    const authToken = generateToken(fullUser);
+    const refreshToken = generateRefreshToken(fullUser);
 
-    res.json({ 
-      success: true, 
+    // Store new refresh token
+    db.prepare('UPDATE users SET refresh_token = ? WHERE id = ?').run(refreshToken, fullUser.id);
+
+    res.json({
+      success: true,
       message: 'Password has been reset successfully.',
       token: authToken,
-      user: { id: user.id, email: user.email }
+      refreshToken,
+      user: { id: fullUser.id, email: fullUser.email, name: fullUser.name }
     });
 
   } catch (err) {
@@ -441,7 +479,7 @@ router.post('/refresh', (req, res) => {
     db.prepare("UPDATE users SET refresh_token = ?, last_active_at = datetime('now') WHERE id = ?")
       .run(newRefreshToken, user.id);
 
-    const { password_hash, refresh_token, ...safeUser } = user;
+    const { password_hash, refresh_token, password_reset_token, password_reset_expires, email_verification_token, ...safeUser } = user;
 
     res.json({
       success: true,

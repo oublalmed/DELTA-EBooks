@@ -149,6 +149,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS journal_entries (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL,
+    book_id     TEXT,
     date        TEXT NOT NULL,
     title       TEXT NOT NULL,
     category    TEXT NOT NULL DEFAULT 'general',
@@ -285,6 +286,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_journal_entries_user ON journal_entries(user_id);
   CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
   CREATE INDEX IF NOT EXISTS idx_journal_entries_public ON journal_entries(is_public);
+  CREATE INDEX IF NOT EXISTS idx_journal_entries_book ON journal_entries(book_id);
   CREATE INDEX IF NOT EXISTS idx_journal_likes_entry ON journal_likes(entry_id);
   CREATE INDEX IF NOT EXISTS idx_journal_comments_entry ON journal_comments(entry_id);
   
@@ -313,6 +315,14 @@ try {
 
 try {
   db.exec(`ALTER TABLE users ADD COLUMN trial_used INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// ── Add book_id to journal_entries for per-book journals ──
+try {
+  db.exec(`ALTER TABLE journal_entries ADD COLUMN book_id TEXT`);
+  console.log('[DB] Migrated journal_entries: added book_id column');
 } catch (e) {
   // Column already exists, ignore
 }

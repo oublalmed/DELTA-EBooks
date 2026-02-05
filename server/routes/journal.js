@@ -52,11 +52,17 @@ const VALID_MOODS = [
 // ══════════════════════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
   try {
-    const { month, year, category, mood } = req.query;
-    
+    const { month, year, category, mood, book_id } = req.query;
+
     let query = 'SELECT * FROM journal_entries WHERE user_id = ?';
     const params = [req.user.id];
-    
+
+    // Filter by book_id (per-book journal)
+    if (book_id) {
+      query += ' AND book_id = ?';
+      params.push(book_id);
+    }
+
     // Filter by month/year if provided
     if (month && year) {
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -207,6 +213,243 @@ router.get('/analytics', requireAuth, (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
+// JOURNAL EXPORT / DOWNLOAD
+// (Must be registered BEFORE /:id to avoid path conflicts)
+// ══════════════════════════════════════════════════════════════════
+
+// GET /api/journal/export/all - Export all journal entries
+router.get('/export/all', requireAuth, async (req, res) => {
+  try {
+    const { format = 'txt' } = req.query;
+
+    const entries = db.prepare(`
+      SELECT je.*, b.title as book_title
+      FROM journal_entries je
+      LEFT JOIN books b ON je.book_id = b.id
+      WHERE je.user_id = ?
+      ORDER BY je.date DESC, je.created_at DESC
+    `).all(req.user.id);
+
+    if (entries.length === 0) {
+      return res.status(404).json({ error: 'No journal entries found.' });
+    }
+
+    const parsed = entries.map(e => ({
+      ...e,
+      tags: e.tags ? JSON.parse(e.tags) : [],
+    }));
+
+    if (format === 'json') {
+      return res.json({ entries: parsed });
+    }
+
+    if (format === 'md' || format === 'markdown') {
+      let md = '# My Reading Journal\n\n';
+      md += `*Exported on ${new Date().toLocaleString()}*\n\n`;
+      md += `**Total entries:** ${parsed.length}\n\n---\n\n`;
+
+      for (const entry of parsed) {
+        md += `## ${entry.title}\n\n`;
+        md += `**Date:** ${entry.date}`;
+        if (entry.book_title) md += ` | **Book:** ${entry.book_title}`;
+        if (entry.mood) md += ` | **Mood:** ${entry.mood}`;
+        if (entry.category !== 'general') md += ` | **Category:** ${entry.category}`;
+        md += '\n\n';
+        md += `${entry.content}\n\n`;
+        if (entry.tags.length > 0) {
+          md += `*Tags: ${entry.tags.map(t => `#${t}`).join(' ')}*\n\n`;
+        }
+        md += '---\n\n';
+      }
+
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="my-journal.md"');
+      return res.send(md);
+    }
+
+    if (format === 'pdf') {
+      const { generateJournalPDF } = await import('../services/pdf.js');
+      const pdfBuffer = await generateJournalPDF(parsed, 'My Reading Journal');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="my-journal.pdf"');
+      res.setHeader('Content-Length', pdfBuffer.length);
+      return res.send(pdfBuffer);
+    }
+
+    // Default: TXT
+    let txt = 'MY READING JOURNAL\n';
+    txt += `Exported on ${new Date().toLocaleString()}\n`;
+    txt += `Total entries: ${parsed.length}\n`;
+    txt += '═'.repeat(60) + '\n\n';
+
+    for (const entry of parsed) {
+      txt += `${entry.title}\n`;
+      txt += '-'.repeat(40) + '\n';
+      txt += `Date: ${entry.date}`;
+      if (entry.book_title) txt += ` | Book: ${entry.book_title}`;
+      if (entry.mood) txt += ` | Mood: ${entry.mood}`;
+      txt += '\n\n';
+      txt += `${entry.content}\n\n`;
+      if (entry.tags.length > 0) {
+        txt += `Tags: ${entry.tags.map(t => `#${t}`).join(' ')}\n`;
+      }
+      txt += '─'.repeat(60) + '\n\n';
+    }
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="my-journal.txt"');
+    res.send(txt);
+  } catch (err) {
+    console.error('Failed to export journal:', err);
+    res.status(500).json({ error: 'Failed to export journal.' });
+  }
+});
+
+// GET /api/journal/export/:bookId - Export journal entries for a specific book
+router.get('/export/:bookId', requireAuth, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const { format = 'txt' } = req.query;
+
+    const book = db.prepare('SELECT title FROM books WHERE id = ?').get(bookId);
+    const bookTitle = book?.title || bookId;
+
+    const entries = db.prepare(`
+      SELECT * FROM journal_entries
+      WHERE user_id = ? AND book_id = ?
+      ORDER BY date DESC, created_at DESC
+    `).all(req.user.id, bookId);
+
+    if (entries.length === 0) {
+      return res.status(404).json({ error: 'No journal entries found for this book.' });
+    }
+
+    const parsed = entries.map(e => ({
+      ...e,
+      tags: e.tags ? JSON.parse(e.tags) : [],
+    }));
+
+    const safeTitle = bookTitle.replace(/[^a-zA-Z0-9]/g, '_');
+
+    if (format === 'json') {
+      return res.json({ bookId, bookTitle, entries: parsed });
+    }
+
+    if (format === 'md' || format === 'markdown') {
+      let md = `# Journal: ${bookTitle}\n\n`;
+      md += `*Exported on ${new Date().toLocaleString()}*\n\n`;
+      md += `**Entries:** ${parsed.length}\n\n---\n\n`;
+
+      for (const entry of parsed) {
+        md += `## ${entry.title}\n\n`;
+        md += `**Date:** ${entry.date}`;
+        if (entry.mood) md += ` | **Mood:** ${entry.mood}`;
+        md += '\n\n';
+        md += `${entry.content}\n\n`;
+        if (entry.tags.length > 0) {
+          md += `*Tags: ${entry.tags.map(t => `#${t}`).join(' ')}*\n\n`;
+        }
+        md += '---\n\n';
+      }
+
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="journal-${safeTitle}.md"`);
+      return res.send(md);
+    }
+
+    if (format === 'pdf') {
+      const { generateJournalPDF } = await import('../services/pdf.js');
+      const pdfBuffer = await generateJournalPDF(parsed, `Journal: ${bookTitle}`);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="journal-${safeTitle}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      return res.send(pdfBuffer);
+    }
+
+    // Default: TXT
+    let txt = `JOURNAL: ${bookTitle.toUpperCase()}\n`;
+    txt += `Exported on ${new Date().toLocaleString()}\n`;
+    txt += `Entries: ${parsed.length}\n`;
+    txt += '═'.repeat(60) + '\n\n';
+
+    for (const entry of parsed) {
+      txt += `${entry.title}\n`;
+      txt += '-'.repeat(40) + '\n';
+      txt += `Date: ${entry.date}`;
+      if (entry.mood) txt += ` | Mood: ${entry.mood}`;
+      txt += '\n\n';
+      txt += `${entry.content}\n\n`;
+      txt += '─'.repeat(60) + '\n\n';
+    }
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="journal-${safeTitle}.txt"`);
+    res.send(txt);
+  } catch (err) {
+    console.error('Failed to export book journal:', err);
+    res.status(500).json({ error: 'Failed to export journal entries.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// PUBLIC ENTRIES (Community Features)
+// (Must be registered BEFORE /:id to avoid path conflicts)
+// ══════════════════════════════════════════════════════════════════
+
+// GET /api/journal/public/feed - Get public journal entries
+router.get('/public/feed', optionalAuth, (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const entries = db.prepare(`
+      SELECT
+        j.*,
+        u.name as author_name,
+        (SELECT COUNT(*) FROM journal_likes WHERE entry_id = j.id) as likes_count,
+        (SELECT COUNT(*) FROM journal_comments WHERE entry_id = j.id) as comments_count
+      FROM journal_entries j
+      JOIN users u ON j.user_id = u.id
+      WHERE j.is_public = 1
+      ORDER BY j.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(parseInt(limit), offset);
+
+    const parsed = entries.map(e => ({
+      ...e,
+      tags: e.tags ? JSON.parse(e.tags) : [],
+      is_public: true,
+      is_liked: req.user ? Boolean(
+        db.prepare('SELECT 1 FROM journal_likes WHERE entry_id = ? AND user_id = ?')
+          .get(e.id, req.user.id)
+      ) : false
+    }));
+
+    res.json(parsed);
+  } catch (err) {
+    console.error('Failed to get public feed:', err);
+    res.status(500).json({ error: 'Failed to retrieve public feed.' });
+  }
+});
+
+// DELETE /api/journal/comments/:commentId - Delete own comment
+router.delete('/comments/:commentId', requireAuth, (req, res) => {
+  try {
+    const result = db.prepare('DELETE FROM journal_comments WHERE id = ? AND user_id = ?')
+      .run(req.params.commentId, req.user.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Comment not found or not yours.' });
+    }
+
+    res.status(204).send();
+  } catch (err) {
+    console.error('Failed to delete comment:', err);
+    res.status(500).json({ error: 'Failed to delete comment.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
 // GET /api/journal/:id - Get a specific journal entry
 // ══════════════════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {
@@ -234,42 +477,44 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /api/journal - Create a new journal entry
 // ══════════════════════════════════════════════════════════════════
 router.post('/', requireAuth, (req, res) => {
-  const { 
-    date, 
-    title, 
-    category = 'general', 
-    content, 
-    mood, 
+  const {
+    date,
+    title,
+    category = 'general',
+    content,
+    mood,
     mood_rating = 3,
     tags = [],
     image_url,
-    is_public = false 
+    is_public = false,
+    book_id,
   } = req.body;
-  
+
   // Validation
   if (!date || !title || !content) {
     return res.status(400).json({ error: 'Date, title, and content are required.' });
   }
-  
+
   if (!VALID_CATEGORIES.includes(category)) {
     return res.status(400).json({ error: 'Invalid category.' });
   }
-  
+
   if (mood && !VALID_MOODS.includes(mood)) {
     return res.status(400).json({ error: 'Invalid mood.' });
   }
-  
+
   if (mood_rating < 1 || mood_rating > 5) {
     return res.status(400).json({ error: 'Mood rating must be between 1 and 5.' });
   }
-  
+
   try {
     const result = db.prepare(`
-      INSERT INTO journal_entries 
-      (user_id, date, title, category, content, mood, mood_rating, tags, image_url, is_public)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO journal_entries
+      (user_id, book_id, date, title, category, content, mood, mood_rating, tags, image_url, is_public)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       req.user.id,
+      book_id || null,
       date,
       title.trim(),
       category,
@@ -407,46 +652,6 @@ router.delete('/:id', requireAuth, (req, res) => {
   }
 });
 
-// ══════════════════════════════════════════════════════════════════
-// PUBLIC ENTRIES (Community Features)
-// ══════════════════════════════════════════════════════════════════
-
-// GET /api/journal/public/feed - Get public journal entries
-router.get('/public/feed', optionalAuth, (req, res) => {
-  try {
-    const { page = 1, limit = 20 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    
-    const entries = db.prepare(`
-      SELECT 
-        j.*,
-        u.name as author_name,
-        (SELECT COUNT(*) FROM journal_likes WHERE entry_id = j.id) as likes_count,
-        (SELECT COUNT(*) FROM journal_comments WHERE entry_id = j.id) as comments_count
-      FROM journal_entries j
-      JOIN users u ON j.user_id = u.id
-      WHERE j.is_public = 1
-      ORDER BY j.created_at DESC
-      LIMIT ? OFFSET ?
-    `).all(parseInt(limit), offset);
-    
-    const parsed = entries.map(e => ({
-      ...e,
-      tags: e.tags ? JSON.parse(e.tags) : [],
-      is_public: true,
-      is_liked: req.user ? Boolean(
-        db.prepare('SELECT 1 FROM journal_likes WHERE entry_id = ? AND user_id = ?')
-          .get(e.id, req.user.id)
-      ) : false
-    }));
-    
-    res.json(parsed);
-  } catch (err) {
-    console.error('Failed to get public feed:', err);
-    res.status(500).json({ error: 'Failed to retrieve public feed.' });
-  }
-});
-
 // POST /api/journal/:id/like - Like a public entry
 router.post('/:id/like', requireAuth, (req, res) => {
   try {
@@ -534,23 +739,6 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Failed to add comment:', err);
     res.status(500).json({ error: 'Failed to add comment.' });
-  }
-});
-
-// DELETE /api/journal/comments/:commentId - Delete own comment
-router.delete('/comments/:commentId', requireAuth, (req, res) => {
-  try {
-    const result = db.prepare('DELETE FROM journal_comments WHERE id = ? AND user_id = ?')
-      .run(req.params.commentId, req.user.id);
-    
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Comment not found or not yours.' });
-    }
-    
-    res.status(204).send();
-  } catch (err) {
-    console.error('Failed to delete comment:', err);
-    res.status(500).json({ error: 'Failed to delete comment.' });
   }
 });
 
