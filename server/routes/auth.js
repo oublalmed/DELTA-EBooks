@@ -25,7 +25,7 @@ function generateResetToken() {
 function getTokenExpiration(hours = 1) {
   const expiration = new Date();
   expiration.setHours(expiration.getHours() + hours);
-  return expiration.toISOString();
+  return expiration;
 }
 
 // ── POST /api/auth/register ──

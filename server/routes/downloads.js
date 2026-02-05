@@ -44,7 +44,7 @@ router.post('/generate-token', requireAuth, async (req, res) => {
 
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
     await db.run(`
       INSERT INTO download_tokens (user_id, book_id, token, expires_at)
@@ -53,7 +53,7 @@ router.post('/generate-token', requireAuth, async (req, res) => {
 
     res.json({
       downloadUrl: `/api/downloads/${token}`,
-      expiresAt,
+      expiresAt: expiresAt.toISOString(),
       downloadsRemaining: MAX_DOWNLOADS_PER_BOOK - downloadCount.count - 1,
     });
   } catch (err) {

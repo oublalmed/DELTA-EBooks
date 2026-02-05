@@ -56,7 +56,7 @@ router.get('/status', requireAuth, async (req, res) => {
 
     res.json({
       isPremium: isPremium || trialActive,
-      premiumUntil: isPremium ? user.premium_until : (trialActive ? trial.trial_ends : null),
+      premiumUntil: isPremium ? premiumUntil.toISOString() : (trialActive ? trialEnds.toISOString() : null),
       accessType: trialActive ? 'trial' : (isPremium ? 'ad_reward' : 'free'),
       trialAvailable,
       trialUsed: Boolean(user.trial_used || trial?.trial_used),
@@ -161,7 +161,7 @@ router.post('/grant-access', requireAuth, async (req, res) => {
       VALUES (?, 'ad_reward', ?, ?, ?, ?, ?, ?, ?)
     `, [
       req.user.id,
-      expiresAt.toISOString(),
+      expiresAt,
       PREMIUM_DURATION_DAYS,
       adNetwork,
       adUnitId || null,
@@ -275,7 +275,7 @@ export async function requirePremium(req, res, next) {
     const now = new Date().toISOString();
 
     // Check premium status
-    if (user.premium_until && user.premium_until > now) {
+    if (user.premium_until && new Date(user.premium_until) > now) {
       req.isPremium = true;
       return next();
     }
