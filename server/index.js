@@ -8,12 +8,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Rate limiting middleware
-import { 
-  generalLimiter, 
-  authLimiter, 
-  passwordResetLimiter, 
-  adminLimiter, 
-  aiLimiter 
+import {
+  generalLimiter,
+  authLimiter,
+  passwordResetLimiter,
+  adminLimiter,
+  aiLimiter
 } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/auth.js';
@@ -98,14 +98,14 @@ app.use('/api/downloads', downloadRoutes);
 // ── Email subscription (simple) ──
 import db from './db.js';
 
-app.post('/api/subscribe', express.json(), (req, res) => {
+app.post('/api/subscribe', express.json(), async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' });
     }
-    db.prepare('INSERT OR IGNORE INTO email_subscribers (email, source) VALUES (?, ?)')
-      .run(email.toLowerCase().trim(), 'website');
+    await db.run('INSERT IGNORE INTO email_subscribers (email, source) VALUES (?, ?)',
+      [email.toLowerCase().trim(), 'website']);
     res.json({ success: true, message: 'Subscribed successfully!' });
   } catch (err) {
     console.error('Subscribe error:', err);

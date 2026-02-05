@@ -9,14 +9,14 @@ const router = Router();
 // ══════════════════════════════════════════════════════════════════
 
 // Get my messages
-router.get('/messages', requireAuth, (req, res) => {
+router.get('/messages', requireAuth, async (req, res) => {
   try {
-    const messages = db.prepare(`
+    const messages = await db.all(`
       SELECT id, type, subject, message, status, admin_reply, replied_at, created_at
       FROM client_messages
       WHERE user_id = ?
       ORDER BY created_at DESC
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     res.json(messages);
   } catch (error) {
@@ -26,7 +26,7 @@ router.get('/messages', requireAuth, (req, res) => {
 });
 
 // Send a message to admin
-router.post('/messages', requireAuth, (req, res) => {
+router.post('/messages', requireAuth, async (req, res) => {
   try {
     const { type, subject, message } = req.body;
 
@@ -37,12 +37,12 @@ router.post('/messages', requireAuth, (req, res) => {
     const validTypes = ['general', 'feedback', 'support', 'bug_report', 'feature_request'];
     const messageType = validTypes.includes(type) ? type : 'general';
 
-    const result = db.prepare(`
+    const result = await db.run(`
       INSERT INTO client_messages (user_id, type, subject, message)
       VALUES (?, ?, ?, ?)
-    `).run(req.user.id, messageType, subject.trim(), message.trim());
+    `, [req.user.id, messageType, subject.trim(), message.trim()]);
 
-    const newMessage = db.prepare('SELECT * FROM client_messages WHERE id = ?').get(result.lastInsertRowid);
+    const newMessage = await db.get('SELECT * FROM client_messages WHERE id = ?', [result.insertId]);
 
     res.status(201).json({
       success: true,
@@ -60,14 +60,14 @@ router.post('/messages', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get my submitted ideas
-router.get('/ideas', requireAuth, (req, res) => {
+router.get('/ideas', requireAuth, async (req, res) => {
   try {
-    const ideas = db.prepare(`
+    const ideas = await db.all(`
       SELECT id, title, description, category, theme, status, created_at
       FROM book_ideas
       WHERE user_id = ?
       ORDER BY created_at DESC
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     res.json(ideas);
   } catch (error) {
@@ -77,7 +77,7 @@ router.get('/ideas', requireAuth, (req, res) => {
 });
 
 // Submit a new book idea
-router.post('/ideas', requireAuth, (req, res) => {
+router.post('/ideas', requireAuth, async (req, res) => {
   try {
     const { title, description, category, theme, target_audience, additional_notes } = req.body;
 
@@ -85,10 +85,10 @@ router.post('/ideas', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Title and description are required' });
     }
 
-    const result = db.prepare(`
+    const result = await db.run(`
       INSERT INTO book_ideas (user_id, title, description, category, theme, target_audience, additional_notes)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
       req.user.id,
       title.trim(),
       description.trim(),
@@ -96,9 +96,9 @@ router.post('/ideas', requireAuth, (req, res) => {
       theme || null,
       target_audience || null,
       additional_notes || null
-    );
+    ]);
 
-    const newIdea = db.prepare('SELECT * FROM book_ideas WHERE id = ?').get(result.lastInsertRowid);
+    const newIdea = await db.get('SELECT * FROM book_ideas WHERE id = ?', [result.insertId]);
 
     res.status(201).json({
       success: true,
@@ -116,21 +116,21 @@ router.post('/ideas', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Log user activity
-router.post('/activity', requireAuth, (req, res) => {
+router.post('/activity', requireAuth, async (req, res) => {
   try {
     const { activity_type, book_id, chapter_id, duration_seconds, metadata } = req.body;
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO user_activity (user_id, activity_type, book_id, chapter_id, duration_seconds, metadata)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
       req.user.id,
       activity_type || 'unknown',
       book_id || null,
       chapter_id || null,
       duration_seconds || null,
       metadata ? JSON.stringify(metadata) : null
-    );
+    ]);
 
     res.json({ success: true });
   } catch (error) {
@@ -140,7 +140,7 @@ router.post('/activity', requireAuth, (req, res) => {
 });
 
 // Start reading session
-router.post('/reading-session/start', requireAuth, (req, res) => {
+router.post('/reading-session/start', requireAuth, async (req, res) => {
   try {
     const { book_id, chapter_id } = req.body;
 
@@ -148,12 +148,12 @@ router.post('/reading-session/start', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Book ID is required' });
     }
 
-    const result = db.prepare(`
+    const result = await db.run(`
       INSERT INTO reading_sessions (user_id, book_id, chapter_id)
       VALUES (?, ?, ?)
-    `).run(req.user.id, book_id, chapter_id || null);
+    `, [req.user.id, book_id, chapter_id || null]);
 
-    res.json({ session_id: result.lastInsertRowid });
+    res.json({ session_id: result.insertId });
   } catch (error) {
     console.error('Start session error:', error);
     res.status(500).json({ error: 'Failed to start reading session' });
@@ -161,13 +161,15 @@ router.post('/reading-session/start', requireAuth, (req, res) => {
 });
 
 // End reading session
-router.post('/reading-session/:id/end', requireAuth, (req, res) => {
+router.post('/reading-session/:id/end', requireAuth, async (req, res) => {
   try {
     const { pages_read } = req.body;
 
     // Get session start time
-    const session = db.prepare('SELECT started_at FROM reading_sessions WHERE id = ? AND user_id = ?')
-      .get(req.params.id, req.user.id);
+    const session = await db.get(
+      'SELECT started_at FROM reading_sessions WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
@@ -177,13 +179,13 @@ router.post('/reading-session/:id/end', requireAuth, (req, res) => {
     const endTime = new Date();
     const durationSeconds = Math.round((endTime - startTime) / 1000);
 
-    db.prepare(`
+    await db.run(`
       UPDATE reading_sessions SET
-        ended_at = datetime('now'),
+        ended_at = NOW(),
         duration_seconds = ?,
         pages_read = ?
       WHERE id = ?
-    `).run(durationSeconds, pages_read || null, req.params.id);
+    `, [durationSeconds, pages_read || null, req.params.id]);
 
     res.json({ success: true, duration_seconds: durationSeconds });
   } catch (error) {

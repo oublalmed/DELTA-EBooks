@@ -16,13 +16,13 @@ const JOURNAL_ACCESS_DAYS = 7; // Days granted per ad watch
 // ══════════════════════════════════════════════════════════════════
 
 // Get all unlocked chapters for a user
-router.get('/chapters', requireAuth, (req, res) => {
+router.get('/chapters', requireAuth, async (req, res) => {
   try {
-    const unlocks = db.prepare(`
+    const unlocks = await db.all(`
       SELECT book_id, chapter_id, unlocked_at
       FROM chapter_unlocks
       WHERE user_id = ?
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     // Group by book
     const unlockedByBook = {};
@@ -45,7 +45,7 @@ router.get('/chapters', requireAuth, (req, res) => {
 });
 
 // Check if a specific chapter is unlocked
-router.get('/chapters/:bookId/:chapterId', requireAuth, (req, res) => {
+router.get('/chapters/:bookId/:chapterId', requireAuth, async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
     const chapterNum = parseInt(chapterId);
@@ -61,10 +61,10 @@ router.get('/chapters/:bookId/:chapterId', requireAuth, (req, res) => {
     }
 
     // Check if chapter was unlocked via ad
-    const unlock = db.prepare(`
+    const unlock = await db.get(`
       SELECT * FROM chapter_unlocks
       WHERE user_id = ? AND book_id = ? AND chapter_id = ?
-    `).get(req.user.id, bookId, chapterNum);
+    `, [req.user.id, bookId, chapterNum]);
 
     res.json({
       isUnlocked: !!unlock,
@@ -80,7 +80,7 @@ router.get('/chapters/:bookId/:chapterId', requireAuth, (req, res) => {
 });
 
 // Unlock a chapter after watching ad
-router.post('/chapters/:bookId/:chapterId/unlock', requireAuth, (req, res) => {
+router.post('/chapters/:bookId/:chapterId/unlock', requireAuth, async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
     const chapterNum = parseInt(chapterId);
@@ -95,10 +95,10 @@ router.post('/chapters/:bookId/:chapterId/unlock', requireAuth, (req, res) => {
     }
 
     // Check if already unlocked
-    const existing = db.prepare(`
+    const existing = await db.get(`
       SELECT * FROM chapter_unlocks
       WHERE user_id = ? AND book_id = ? AND chapter_id = ?
-    `).get(req.user.id, bookId, chapterNum);
+    `, [req.user.id, bookId, chapterNum]);
 
     if (existing) {
       return res.json({
@@ -110,20 +110,20 @@ router.post('/chapters/:bookId/:chapterId/unlock', requireAuth, (req, res) => {
     }
 
     // Unlock the chapter
-    db.prepare(`
+    await db.run(`
       INSERT INTO chapter_unlocks (user_id, book_id, chapter_id)
       VALUES (?, ?, ?)
-    `).run(req.user.id, bookId, chapterNum);
+    `, [req.user.id, bookId, chapterNum]);
 
     // Log the unlock
-    db.prepare(`
+    await db.run(`
       INSERT INTO premium_access_logs (user_id, action, access_type, device_info)
       VALUES (?, ?, ?, ?)
-    `).run(req.user.id, 'chapter_unlock', 'ad_reward', JSON.stringify({
+    `, [req.user.id, 'chapter_unlock', 'ad_reward', JSON.stringify({
       bookId,
       chapterId: chapterNum,
       userAgent: req.headers['user-agent']
-    }));
+    })]);
 
     res.json({
       success: true,
@@ -142,27 +142,27 @@ router.post('/chapters/:bookId/:chapterId/unlock', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get journal access status
-router.get('/journal', requireAuth, (req, res) => {
+router.get('/journal', requireAuth, async (req, res) => {
   try {
     const now = new Date();
-    
+
     // Get or create journal access record
-    let access = db.prepare(`
+    let access = await db.get(`
       SELECT * FROM journal_access WHERE user_id = ?
-    `).get(req.user.id);
+    `, [req.user.id]);
 
     if (!access) {
       // Create new access with free trial
       const freeTrialEnds = new Date(now.getTime() + JOURNAL_FREE_DAYS * 24 * 60 * 60 * 1000);
-      
-      db.prepare(`
+
+      await db.run(`
         INSERT INTO journal_access (user_id, free_trial_ends)
         VALUES (?, ?)
-      `).run(req.user.id, freeTrialEnds.toISOString());
+      `, [req.user.id, freeTrialEnds.toISOString()]);
 
-      access = db.prepare(`
+      access = await db.get(`
         SELECT * FROM journal_access WHERE user_id = ?
-      `).get(req.user.id);
+      `, [req.user.id]);
     }
 
     const freeTrialEnds = new Date(access.free_trial_ends);
@@ -194,22 +194,22 @@ router.get('/journal', requireAuth, (req, res) => {
 });
 
 // Grant journal access after watching ad
-router.post('/journal/unlock', requireAuth, (req, res) => {
+router.post('/journal/unlock', requireAuth, async (req, res) => {
   try {
     const now = new Date();
-    
+
     // Get current access
-    let access = db.prepare(`
+    let access = await db.get(`
       SELECT * FROM journal_access WHERE user_id = ?
-    `).get(req.user.id);
+    `, [req.user.id]);
 
     if (!access) {
       // Create with expired trial (user is unlocking directly)
       const freeTrialEnds = new Date(now.getTime() - 1000); // Already expired
-      db.prepare(`
+      await db.run(`
         INSERT INTO journal_access (user_id, free_trial_ends)
         VALUES (?, ?)
-      `).run(req.user.id, freeTrialEnds.toISOString());
+      `, [req.user.id, freeTrialEnds.toISOString()]);
     }
 
     // Calculate new access end date
@@ -218,19 +218,19 @@ router.post('/journal/unlock', requireAuth, (req, res) => {
     const newAccessUntil = new Date(startFrom.getTime() + JOURNAL_ACCESS_DAYS * 24 * 60 * 60 * 1000);
 
     // Update access
-    db.prepare(`
+    await db.run(`
       UPDATE journal_access
-      SET access_until = ?, updated_at = datetime('now')
+      SET access_until = ?, updated_at = NOW()
       WHERE user_id = ?
-    `).run(newAccessUntil.toISOString(), req.user.id);
+    `, [newAccessUntil.toISOString(), req.user.id]);
 
     // Log the unlock
-    db.prepare(`
+    await db.run(`
       INSERT INTO premium_access_logs (user_id, action, access_type, duration_days, device_info)
       VALUES (?, ?, ?, ?, ?)
-    `).run(req.user.id, 'journal_unlock', 'ad_reward', JOURNAL_ACCESS_DAYS, JSON.stringify({
+    `, [req.user.id, 'journal_unlock', 'ad_reward', JOURNAL_ACCESS_DAYS, JSON.stringify({
       userAgent: req.headers['user-agent']
-    }));
+    })]);
 
     res.json({
       success: true,
@@ -249,21 +249,21 @@ router.post('/journal/unlock', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 
 // Get PDF download status for a book
-router.get('/pdf/:bookId', requireAuth, (req, res) => {
+router.get('/pdf/:bookId', requireAuth, async (req, res) => {
   try {
     const { bookId } = req.params;
 
     // Get or create download progress
-    let progress = db.prepare(`
+    let progress = await db.get(`
       SELECT * FROM pdf_download_progress
       WHERE user_id = ? AND book_id = ?
-    `).get(req.user.id, bookId);
+    `, [req.user.id, bookId]);
 
     if (!progress) {
-      db.prepare(`
+      await db.run(`
         INSERT INTO pdf_download_progress (user_id, book_id, ads_required)
         VALUES (?, ?, ?)
-      `).run(req.user.id, bookId, PDF_ADS_REQUIRED);
+      `, [req.user.id, bookId, PDF_ADS_REQUIRED]);
 
       progress = {
         ads_watched: 0,
@@ -288,21 +288,21 @@ router.get('/pdf/:bookId', requireAuth, (req, res) => {
 });
 
 // Record an ad watched for PDF download
-router.post('/pdf/:bookId/watch-ad', requireAuth, (req, res) => {
+router.post('/pdf/:bookId/watch-ad', requireAuth, async (req, res) => {
   try {
     const { bookId } = req.params;
 
     // Get or create download progress
-    let progress = db.prepare(`
+    let progress = await db.get(`
       SELECT * FROM pdf_download_progress
       WHERE user_id = ? AND book_id = ?
-    `).get(req.user.id, bookId);
+    `, [req.user.id, bookId]);
 
     if (!progress) {
-      db.prepare(`
+      await db.run(`
         INSERT INTO pdf_download_progress (user_id, book_id, ads_required)
         VALUES (?, ?, ?)
-      `).run(req.user.id, bookId, PDF_ADS_REQUIRED);
+      `, [req.user.id, bookId, PDF_ADS_REQUIRED]);
 
       progress = {
         ads_watched: 0,
@@ -327,29 +327,29 @@ router.post('/pdf/:bookId/watch-ad', requireAuth, (req, res) => {
     const newAdsWatched = progress.ads_watched + 1;
     const isNowUnlocked = newAdsWatched >= progress.ads_required;
 
-    db.prepare(`
+    await db.run(`
       UPDATE pdf_download_progress
       SET ads_watched = ?,
           is_unlocked = ?,
-          unlocked_at = CASE WHEN ? = 1 THEN datetime('now') ELSE unlocked_at END,
-          updated_at = datetime('now')
+          unlocked_at = CASE WHEN ? = 1 THEN NOW() ELSE unlocked_at END,
+          updated_at = NOW()
       WHERE user_id = ? AND book_id = ?
-    `).run(newAdsWatched, isNowUnlocked ? 1 : 0, isNowUnlocked ? 1 : 0, req.user.id, bookId);
+    `, [newAdsWatched, isNowUnlocked ? 1 : 0, isNowUnlocked ? 1 : 0, req.user.id, bookId]);
 
     // Log the ad watch
-    db.prepare(`
+    await db.run(`
       INSERT INTO premium_access_logs (user_id, action, access_type, device_info)
       VALUES (?, ?, ?, ?)
-    `).run(req.user.id, 'pdf_ad_watched', 'ad_reward', JSON.stringify({
+    `, [req.user.id, 'pdf_ad_watched', 'ad_reward', JSON.stringify({
       bookId,
       adsWatched: newAdsWatched,
       adsRequired: progress.ads_required,
       userAgent: req.headers['user-agent']
-    }));
+    })]);
 
     res.json({
       success: true,
-      message: isNowUnlocked 
+      message: isNowUnlocked
         ? 'PDF download unlocked! You can now download this book.'
         : `Ad watched! ${progress.ads_required - newAdsWatched} more ads to unlock download.`,
       adsWatched: newAdsWatched,
@@ -365,12 +365,12 @@ router.post('/pdf/:bookId/watch-ad', requireAuth, (req, res) => {
 });
 
 // Get all PDF download statuses for user
-router.get('/pdf', requireAuth, (req, res) => {
+router.get('/pdf', requireAuth, async (req, res) => {
   try {
-    const progresses = db.prepare(`
+    const progresses = await db.all(`
       SELECT * FROM pdf_download_progress
       WHERE user_id = ?
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     const result = {};
     for (const p of progresses) {
@@ -401,25 +401,25 @@ router.get('/pdf/:bookId/download', requireAuth, async (req, res) => {
     const { bookId } = req.params;
 
     // Check if user has unlocked this book's PDF
-    const progress = db.prepare(`
+    const progress = await db.get(`
       SELECT * FROM pdf_download_progress
       WHERE user_id = ? AND book_id = ?
-    `).get(req.user.id, bookId);
+    `, [req.user.id, bookId]);
 
     if (!progress || progress.is_unlocked !== 1) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'PDF not unlocked. Please watch the required ads first.',
         adsWatched: progress?.ads_watched || 0,
         adsRequired: PDF_ADS_REQUIRED
       });
     }
 
-    // Get book data - books are stored in frontend constants, 
+    // Get book data - books are stored in frontend constants,
     // so we'll use a simple structure for now
     // In production, you'd fetch this from the database or an API
     console.log('Getting book data for:', bookId);
     const bookData = getBookData(bookId);
-    
+
     if (!bookData) {
       console.log('Book not found:', bookId);
       return res.status(404).json({ error: 'Book not found' });
@@ -438,10 +438,10 @@ router.get('/pdf/:bookId/download', requireAuth, async (req, res) => {
     console.log('PDF generated, size:', pdfBuffer.length);
 
     // Record download
-    db.prepare(`
+    await db.run(`
       INSERT INTO user_activity (user_id, activity_type, book_id, metadata)
       VALUES (?, 'pdf_download', ?, ?)
-    `).run(req.user.id, bookId, JSON.stringify({ email: req.user.email }));
+    `, [req.user.id, bookId, JSON.stringify({ email: req.user.email })]);
 
     // Serve PDF
     const filename = `${bookData.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
@@ -498,7 +498,7 @@ function getBookData(bookId) {
       ]
     }
   };
-  
+
   return books[bookId] || null;
 }
 

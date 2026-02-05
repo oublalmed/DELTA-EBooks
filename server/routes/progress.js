@@ -1,6 +1,6 @@
 /**
  * User Progress Routes
- * 
+ *
  * Manages chapter reflections and reading progress
  * - Save/update chapter reflections
  * - Get user progress for a book
@@ -16,14 +16,14 @@ const router = Router();
 // ══════════════════════════════════════════════════════════════════
 // GET /api/progress - Get all user progress
 // ══════════════════════════════════════════════════════════════════
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
-    const progress = db.prepare(`
+    const progress = await db.all(`
       SELECT book_id, chapter_id, completed, reflection, updated_at
       FROM user_progress
       WHERE user_id = ?
       ORDER BY book_id, chapter_id
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     // Group by book
     const grouped = progress.reduce((acc, row) => {
@@ -52,16 +52,16 @@ router.get('/', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/progress/:bookId - Get progress for specific book
 // ══════════════════════════════════════════════════════════════════
-router.get('/:bookId', requireAuth, (req, res) => {
+router.get('/:bookId', requireAuth, async (req, res) => {
   try {
     const { bookId } = req.params;
 
-    const progress = db.prepare(`
+    const progress = await db.all(`
       SELECT chapter_id, completed, reflection, updated_at
       FROM user_progress
       WHERE user_id = ? AND book_id = ?
       ORDER BY chapter_id
-    `).all(req.user.id, bookId);
+    `, [req.user.id, bookId]);
 
     const completedIds = progress.filter(p => p.completed).map(p => p.chapter_id);
     const reflections = progress.reduce((acc, p) => {
@@ -71,10 +71,10 @@ router.get('/:bookId', requireAuth, (req, res) => {
       return acc;
     }, {});
 
-    res.json({ 
+    res.json({
       bookId,
-      completedIds, 
-      reflections 
+      completedIds,
+      reflections
     });
   } catch (err) {
     console.error('Get book progress error:', err);
@@ -85,7 +85,7 @@ router.get('/:bookId', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // POST /api/progress/:bookId/:chapterId/reflection - Save reflection
 // ══════════════════════════════════════════════════════════════════
-router.post('/:bookId/:chapterId/reflection', requireAuth, (req, res) => {
+router.post('/:bookId/:chapterId/reflection', requireAuth, async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
     const { reflection } = req.body;
@@ -95,15 +95,14 @@ router.post('/:bookId/:chapterId/reflection', requireAuth, (req, res) => {
     }
 
     // Upsert reflection
-    db.prepare(`
+    await db.run(`
       INSERT INTO user_progress (user_id, book_id, chapter_id, reflection, updated_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-      ON CONFLICT(user_id, book_id, chapter_id) 
-      DO UPDATE SET reflection = excluded.reflection, updated_at = datetime('now')
-    `).run(req.user.id, bookId, parseInt(chapterId), reflection);
+      VALUES (?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE reflection = VALUES(reflection), updated_at = NOW()
+    `, [req.user.id, bookId, parseInt(chapterId), reflection]);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Reflection saved',
       bookId,
       chapterId: parseInt(chapterId),
@@ -118,21 +117,20 @@ router.post('/:bookId/:chapterId/reflection', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // POST /api/progress/:bookId/:chapterId/complete - Mark chapter complete
 // ══════════════════════════════════════════════════════════════════
-router.post('/:bookId/:chapterId/complete', requireAuth, (req, res) => {
+router.post('/:bookId/:chapterId/complete', requireAuth, async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
     const { completed } = req.body;
 
     // Upsert completion status
-    db.prepare(`
+    await db.run(`
       INSERT INTO user_progress (user_id, book_id, chapter_id, completed, updated_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-      ON CONFLICT(user_id, book_id, chapter_id) 
-      DO UPDATE SET completed = excluded.completed, updated_at = datetime('now')
-    `).run(req.user.id, bookId, parseInt(chapterId), completed ? 1 : 0);
+      VALUES (?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE completed = VALUES(completed), updated_at = NOW()
+    `, [req.user.id, bookId, parseInt(chapterId), completed ? 1 : 0]);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: completed ? 'Chapter marked complete' : 'Chapter marked incomplete',
       bookId,
       chapterId: parseInt(chapterId),
@@ -147,21 +145,21 @@ router.post('/:bookId/:chapterId/complete', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/progress/export - Export all reflections for download
 // ══════════════════════════════════════════════════════════════════
-router.get('/export/all', requireAuth, (req, res) => {
+router.get('/export/all', requireAuth, async (req, res) => {
   try {
     const { format = 'json' } = req.query;
 
-    const reflections = db.prepare(`
-      SELECT 
-        up.book_id, 
-        up.chapter_id, 
-        up.reflection, 
+    const reflections = await db.all(`
+      SELECT
+        up.book_id,
+        up.chapter_id,
+        up.reflection,
         up.completed,
         up.updated_at
       FROM user_progress up
       WHERE up.user_id = ? AND up.reflection IS NOT NULL AND up.reflection != ''
       ORDER BY up.book_id, up.chapter_id
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     if (format === 'json') {
       res.json({ reflections });
@@ -200,21 +198,21 @@ router.get('/export/all', requireAuth, (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // GET /api/progress/export/:bookId - Export reflections for a book
 // ══════════════════════════════════════════════════════════════════
-router.get('/export/:bookId', requireAuth, (req, res) => {
+router.get('/export/:bookId', requireAuth, async (req, res) => {
   try {
     const { bookId } = req.params;
     const { format = 'json' } = req.query;
 
-    const reflections = db.prepare(`
-      SELECT 
-        chapter_id, 
-        reflection, 
+    const reflections = await db.all(`
+      SELECT
+        chapter_id,
+        reflection,
         completed,
         updated_at
       FROM user_progress
       WHERE user_id = ? AND book_id = ? AND reflection IS NOT NULL AND reflection != ''
       ORDER BY chapter_id
-    `).all(req.user.id, bookId);
+    `, [req.user.id, bookId]);
 
     if (format === 'json') {
       res.json({ bookId, reflections });

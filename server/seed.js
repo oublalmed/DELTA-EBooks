@@ -91,7 +91,7 @@ const BOOKS = [
   },
   {
     id: 'mind-body-connection',
-    title: 'The Mind–Body Connection',
+    title: 'The Mind\u2013Body Connection',
     subtitle: 'Bridging the Gap Between Thought and Flesh',
     author: 'Mohamed Oublal',
     description: 'An illuminating exploration of how mind and body are not separate entities but a unified system, and how understanding this connection unlocks healing, performance, and well-being.',
@@ -103,25 +103,34 @@ const BOOKS = [
   },
 ];
 
-// Seed books
-const insertBook = db.prepare(`
-  INSERT OR REPLACE INTO books (id, title, subtitle, author, description, price, currency, cover_image, accent_color, total_chapters)
-  VALUES (@id, @title, @subtitle, @author, @description, @price, @currency, @cover_image, @accent_color, @total_chapters)
-`);
-
-const seedBooks = db.transaction(() => {
-  for (const book of BOOKS) {
-    insertBook.run(book);
+(async () => {
+  const connection = await db.pool.getConnection();
+  await connection.beginTransaction();
+  try {
+    for (const book of BOOKS) {
+      await connection.execute(
+        `REPLACE INTO books (id, title, subtitle, author, description, price, currency, cover_image, accent_color, total_chapters)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [book.id, book.title, book.subtitle, book.author, book.description, book.price, book.currency, book.cover_image, book.accent_color, book.total_chapters]
+      );
+    }
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
   }
-});
 
-seedBooks();
-console.log(`Seeded ${BOOKS.length} books.`);
+  console.log(`Seeded ${BOOKS.length} books.`);
 
-// Note: Chapters are served from the frontend constants.tsx file
-// and also inserted into the DB below for the API and PDF generation.
-// The chapter content is imported from the frontend constants.
+  // Note: Chapters are served from the frontend constants.tsx file
+  // and also inserted into the DB below for the API and PDF generation.
+  // The chapter content is imported from the frontend constants.
 
-console.log('Database seeded successfully!');
-console.log('Note: Chapter data is served from frontend constants and synced via the /api/books endpoints.');
-console.log('To sync chapters to DB for PDF generation, run the app and call POST /api/admin/sync-chapters.');
+  console.log('Database seeded successfully!');
+  console.log('Note: Chapter data is served from frontend constants and synced via the /api/books endpoints.');
+  console.log('To sync chapters to DB for PDF generation, run the app and call POST /api/admin/sync-chapters.');
+
+  process.exit(0);
+})();

@@ -5,9 +5,12 @@ import db from '../db.js';
 const router = Router();
 
 // Get all journey entries for the user
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
-    const entries = db.prepare('SELECT * FROM journey_entries WHERE user_id = ? ORDER BY date DESC').all(req.user.id);
+    const entries = await db.all(
+      'SELECT * FROM journey_entries WHERE user_id = ? ORDER BY date DESC',
+      [req.user.id]
+    );
     res.json(entries);
   } catch (err) {
     console.error('Failed to get journey entries:', err);
@@ -16,7 +19,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // Add or update a journey entry
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { date, emotion, milestone, challenge, reflection, rating } = req.body;
   if (!date || !emotion || !rating) {
     return res.status(400).json({ error: 'Date, emotion, and rating are required.' });
@@ -24,21 +27,26 @@ router.post('/', requireAuth, (req, res) => {
 
   try {
     // Check if an entry for that date already exists
-    const existing = db.prepare('SELECT id FROM journey_entries WHERE user_id = ? AND date = ?').get(req.user.id, date);
+    const existing = await db.get(
+      'SELECT id FROM journey_entries WHERE user_id = ? AND date = ?',
+      [req.user.id, date]
+    );
 
     if (existing) {
       // Update existing entry
-      db.prepare(
-        'UPDATE journey_entries SET emotion = ?, milestone = ?, challenge = ?, reflection = ?, rating = ? WHERE id = ?'
-      ).run(emotion, milestone, challenge, reflection, rating, existing.id);
-      const updatedEntry = db.prepare('SELECT * FROM journey_entries WHERE id = ?').get(existing.id);
+      await db.run(
+        'UPDATE journey_entries SET emotion = ?, milestone = ?, challenge = ?, reflection = ?, rating = ? WHERE id = ?',
+        [emotion, milestone, challenge, reflection, rating, existing.id]
+      );
+      const updatedEntry = await db.get('SELECT * FROM journey_entries WHERE id = ?', [existing.id]);
       res.json(updatedEntry);
     } else {
       // Insert new entry
-      const result = db.prepare(
-        'INSERT INTO journey_entries (user_id, date, emotion, milestone, challenge, reflection, rating) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(req.user.id, date, emotion, milestone, challenge, reflection, rating);
-      const newEntry = db.prepare('SELECT * FROM journey_entries WHERE id = ?').get(result.lastInsertRowid);
+      const result = await db.run(
+        'INSERT INTO journey_entries (user_id, date, emotion, milestone, challenge, reflection, rating) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.user.id, date, emotion, milestone, challenge, reflection, rating]
+      );
+      const newEntry = await db.get('SELECT * FROM journey_entries WHERE id = ?', [result.insertId]);
       res.status(201).json(newEntry);
     }
   } catch (err) {
@@ -48,10 +56,13 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 // Delete a journey entry
-router.delete('/:date', requireAuth, (req, res) => {
+router.delete('/:date', requireAuth, async (req, res) => {
   try {
-    const result = db.prepare('DELETE FROM journey_entries WHERE date = ? AND user_id = ?').run(req.params.date, req.user.id);
-    if (result.changes === 0) {
+    const result = await db.run(
+      'DELETE FROM journey_entries WHERE date = ? AND user_id = ?',
+      [req.params.date, req.user.id]
+    );
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Entry not found or you do not have permission to delete it.' });
     }
     res.status(204).send();

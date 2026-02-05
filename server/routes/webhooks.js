@@ -31,16 +31,16 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
 
       if (userId && bookId) {
         // Record the purchase
-        db.prepare(`
-          INSERT OR IGNORE INTO purchases (user_id, book_id, stripe_payment_intent_id, amount, currency, status)
+        await db.run(`
+          INSERT IGNORE INTO purchases (user_id, book_id, stripe_payment_intent_id, amount, currency, status)
           VALUES (?, ?, ?, ?, ?, ?)
-        `).run(userId, bookId, paymentIntent.id, amount, paymentIntent.currency, 'completed');
+        `, [userId, bookId, paymentIntent.id, amount, paymentIntent.currency, 'completed']);
 
         // Log successful payment
-        db.prepare(`
+        await db.run(`
           INSERT INTO payment_logs (user_id, book_id, event_type, amount, currency, status, raw_data)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(userId, bookId, 'STRIPE_PAYMENT_SUCCEEDED', amount, paymentIntent.currency, 'completed', JSON.stringify(paymentIntent));
+        `, [userId, bookId, 'STRIPE_PAYMENT_SUCCEEDED', amount, paymentIntent.currency, 'completed', JSON.stringify(paymentIntent)]);
       }
       break;
     }
@@ -79,20 +79,20 @@ router.post('/paypal', async (req, res) => {
     const eventType = event.event_type;
 
     // Log all webhook events
-    db.prepare(`
+    await db.run(`
       INSERT INTO payment_logs (event_type, status, raw_data, ip_address)
       VALUES (?, ?, ?, ?)
-    `).run(`WEBHOOK_${eventType}`, 'received', JSON.stringify(event), req.ip);
+    `, [`WEBHOOK_${eventType}`, 'received', JSON.stringify(event), req.ip]);
 
     switch (eventType) {
       case 'CHECKOUT.ORDER.APPROVED': {
         // Order approved — user approved payment in PayPal
         const orderId = event.resource?.id;
         if (orderId) {
-          db.prepare(`
+          await db.run(`
             UPDATE payment_logs SET status = 'approved'
             WHERE paypal_order_id = ? AND event_type = 'ORDER_CREATED'
-          `).run(orderId);
+          `, [orderId]);
         }
         break;
       }
@@ -105,23 +105,24 @@ router.post('/paypal', async (req, res) => {
 
         if (orderId) {
           // Find the purchase log to get user and book info
-          const log = db.prepare(
-            'SELECT user_id, book_id FROM payment_logs WHERE paypal_order_id = ? AND event_type = ? LIMIT 1'
-          ).get(orderId, 'ORDER_CREATED');
+          const log = await db.get(
+            'SELECT user_id, book_id FROM payment_logs WHERE paypal_order_id = ? AND event_type = ? LIMIT 1',
+            [orderId, 'ORDER_CREATED']
+          );
 
           if (log) {
             // Ensure purchase is recorded (idempotent)
-            db.prepare(`
-              INSERT OR IGNORE INTO purchases (user_id, book_id, paypal_order_id, amount, currency, status)
+            await db.run(`
+              INSERT IGNORE INTO purchases (user_id, book_id, paypal_order_id, amount, currency, status)
               VALUES (?, ?, ?, ?, ?, ?)
-            `).run(log.user_id, log.book_id, orderId, amount, 'USD', 'completed');
+            `, [log.user_id, log.book_id, orderId, amount, 'USD', 'completed']);
           }
         }
 
-        db.prepare(`
+        await db.run(`
           INSERT INTO payment_logs (paypal_order_id, event_type, amount, status, raw_data, ip_address)
           VALUES (?, ?, ?, ?, ?, ?)
-        `).run(orderId || captureId, 'WEBHOOK_CAPTURE_COMPLETED', amount, 'completed', JSON.stringify(event.resource), req.ip);
+        `, [orderId || captureId, 'WEBHOOK_CAPTURE_COMPLETED', amount, 'completed', JSON.stringify(event.resource), req.ip]);
         break;
       }
 
@@ -130,9 +131,10 @@ router.post('/paypal', async (req, res) => {
         const orderId = event.resource?.supplementary_data?.related_ids?.order_id;
         if (orderId && eventType === 'PAYMENT.CAPTURE.REFUNDED') {
           // Mark purchase as refunded
-          db.prepare(
-            'UPDATE purchases SET status = ? WHERE paypal_order_id = ?'
-          ).run('refunded', orderId);
+          await db.run(
+            'UPDATE purchases SET status = ? WHERE paypal_order_id = ?',
+            ['refunded', orderId]
+          );
         }
         break;
       }

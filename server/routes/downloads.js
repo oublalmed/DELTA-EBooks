@@ -11,7 +11,7 @@ const TOKEN_EXPIRY_MINUTES = 30;
 
 // ── POST /api/downloads/generate-token ──
 // Creates a temporary download token for a purchased book
-router.post('/generate-token', requireAuth, (req, res) => {
+router.post('/generate-token', requireAuth, async (req, res) => {
   try {
     const { bookId } = req.body;
     if (!bookId) {
@@ -19,18 +19,20 @@ router.post('/generate-token', requireAuth, (req, res) => {
     }
 
     // Verify purchase
-    const purchase = db.prepare(
-      'SELECT id FROM purchases WHERE user_id = ? AND book_id = ? AND status = ?'
-    ).get(req.user.id, bookId, 'completed');
+    const purchase = await db.get(
+      'SELECT id FROM purchases WHERE user_id = ? AND book_id = ? AND status = ?',
+      [req.user.id, bookId, 'completed']
+    );
 
     if (!purchase) {
       return res.status(403).json({ error: 'You have not purchased this book' });
     }
 
     // Check download limit
-    const downloadCount = db.prepare(
-      'SELECT COUNT(*) as count FROM download_history WHERE user_id = ? AND book_id = ?'
-    ).get(req.user.id, bookId);
+    const downloadCount = await db.get(
+      'SELECT COUNT(*) as count FROM download_history WHERE user_id = ? AND book_id = ?',
+      [req.user.id, bookId]
+    );
 
     if (downloadCount.count >= MAX_DOWNLOADS_PER_BOOK) {
       return res.status(429).json({
@@ -44,10 +46,10 @@ router.post('/generate-token', requireAuth, (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000).toISOString();
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO download_tokens (user_id, book_id, token, expires_at)
       VALUES (?, ?, ?, ?)
-    `).run(req.user.id, bookId, token, expiresAt);
+    `, [req.user.id, bookId, token, expiresAt]);
 
     res.json({
       downloadUrl: `/api/downloads/${token}`,
@@ -64,12 +66,12 @@ router.post('/generate-token', requireAuth, (req, res) => {
 // Serves the PDF via secure temporary token
 router.get('/:token', async (req, res) => {
   try {
-    const tokenRecord = db.prepare(`
+    const tokenRecord = await db.get(`
       SELECT dt.*, u.email, u.name
       FROM download_tokens dt
       JOIN users u ON dt.user_id = u.id
       WHERE dt.token = ?
-    `).get(req.params.token);
+    `, [req.params.token]);
 
     if (!tokenRecord) {
       return res.status(404).json({ error: 'Invalid download link' });
@@ -86,23 +88,24 @@ router.get('/:token', async (req, res) => {
     }
 
     // Get book and chapters
-    const book = db.prepare('SELECT * FROM books WHERE id = ?').get(tokenRecord.book_id);
+    const book = await db.get('SELECT * FROM books WHERE id = ?', [tokenRecord.book_id]);
     if (!book) {
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    const chapters = db.prepare(
-      'SELECT * FROM chapters WHERE book_id = ? ORDER BY sort_order, id'
-    ).all(tokenRecord.book_id);
+    const chapters = await db.all(
+      'SELECT * FROM chapters WHERE book_id = ? ORDER BY sort_order, id',
+      [tokenRecord.book_id]
+    );
 
     // Mark token as used
-    db.prepare('UPDATE download_tokens SET used = 1 WHERE id = ?').run(tokenRecord.id);
+    await db.run('UPDATE download_tokens SET used = 1 WHERE id = ?', [tokenRecord.id]);
 
     // Record download
-    db.prepare(`
+    await db.run(`
       INSERT INTO download_history (user_id, book_id, ip_address)
       VALUES (?, ?, ?)
-    `).run(tokenRecord.user_id, tokenRecord.book_id, req.ip);
+    `, [tokenRecord.user_id, tokenRecord.book_id, req.ip]);
 
     // Generate PDF with watermark
     const pdfBuffer = await generateBookPDF({
@@ -127,32 +130,35 @@ router.get('/:token', async (req, res) => {
 });
 
 // ── GET /api/downloads/history ──
-router.get('/user/history', requireAuth, (req, res) => {
+router.get('/user/history', requireAuth, async (req, res) => {
   try {
-    const history = db.prepare(`
+    const history = await db.all(`
       SELECT dh.*, b.title as book_title
       FROM download_history dh
       JOIN books b ON dh.book_id = b.id
       WHERE dh.user_id = ?
       ORDER BY dh.downloaded_at DESC
-    `).all(req.user.id);
+    `, [req.user.id]);
 
     // Get remaining downloads per book
-    const purchases = db.prepare(
-      'SELECT book_id FROM purchases WHERE user_id = ? AND status = ?'
-    ).all(req.user.id, 'completed');
+    const purchases = await db.all(
+      'SELECT book_id FROM purchases WHERE user_id = ? AND status = ?',
+      [req.user.id, 'completed']
+    );
 
-    const downloadInfo = purchases.map(p => {
-      const count = db.prepare(
-        'SELECT COUNT(*) as count FROM download_history WHERE user_id = ? AND book_id = ?'
-      ).get(req.user.id, p.book_id);
-      return {
+    const downloadInfo = [];
+    for (const p of purchases) {
+      const count = await db.get(
+        'SELECT COUNT(*) as count FROM download_history WHERE user_id = ? AND book_id = ?',
+        [req.user.id, p.book_id]
+      );
+      downloadInfo.push({
         bookId: p.book_id,
         downloadsUsed: count.count,
         downloadsRemaining: Math.max(0, MAX_DOWNLOADS_PER_BOOK - count.count),
         maxDownloads: MAX_DOWNLOADS_PER_BOOK,
-      };
-    });
+      });
+    }
 
     res.json({ history, downloadInfo });
   } catch (err) {
