@@ -7,7 +7,10 @@ const router = Router();
 // Get all expression entries for the user
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const entries = await db.prepare('SELECT * FROM expression_entries WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
+    const entries = await db.all(
+      'SELECT * FROM expression_entries WHERE user_id = ? ORDER BY created_at DESC',
+      [req.user.id]
+    );
     res.json(entries);
   } catch (err) {
     console.error('Failed to get expression entries:', err);
@@ -23,11 +26,12 @@ router.post('/', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await db.prepare(
-      'INSERT INTO expression_entries (user_id, text, category, mood) VALUES (?, ?, ?, ?)'
-    ).run(req.user.id, text, category, mood);
+    const result = await db.run(
+      'INSERT INTO expression_entries (user_id, text, category, mood) VALUES (?, ?, ?, ?)',
+      [req.user.id, text, category, mood]
+    );
 
-    const newEntry = await db.prepare('SELECT * FROM expression_entries WHERE id = ?').get(result.lastInsertRowid);
+    const newEntry = await db.get('SELECT * FROM expression_entries WHERE id = ?', [result.insertId]);
     res.status(201).json(newEntry);
   } catch (err) {
     console.error('Failed to add expression entry:', err);
@@ -38,8 +42,11 @@ router.post('/', requireAuth, async (req, res) => {
 // Delete an expression entry
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const result = await db.prepare('DELETE FROM expression_entries WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
-    if (result.changes === 0) {
+    const result = await db.run(
+      'DELETE FROM expression_entries WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Entry not found or you do not have permission to delete it.' });
     }
     res.status(204).send();

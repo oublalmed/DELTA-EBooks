@@ -181,7 +181,11 @@ const App: React.FC = () => {
     setAuthError(null);
     const data = await api.login(email, password);
     localStorage.setItem('delta_token', data.token);
+    if (data.refreshToken) {
+      localStorage.setItem('delta_refresh_token', data.refreshToken);
+    }
     setUser(data.user);
+    setIsAdmin(data.user?.role === 'admin');
     // Load purchases
     const profile = await api.getProfile();
     setPurchasedBookIds(profile.purchases);
@@ -192,17 +196,27 @@ const App: React.FC = () => {
     setAuthError(null);
     const data = await api.register(email, password, name);
     localStorage.setItem('delta_token', data.token);
+    if (data.refreshToken) {
+      localStorage.setItem('delta_refresh_token', data.refreshToken);
+    }
     setUser(data.user);
     setPurchasedBookIds([]);
     setView('shelf');
   }, []);
 
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('delta_token');
-    localStorage.removeItem('delta_refresh_token');
+  const handleLogout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch {
+      // Clear tokens even if server call fails
+      localStorage.removeItem('delta_token');
+      localStorage.removeItem('delta_refresh_token');
+    }
     setUser(null);
     setPurchasedBookIds([]);
     setIsAdmin(false);
+    setIsPremium(false);
+    setUnlockedChapters({});
     setView('shelf');
   }, []);
 
@@ -218,6 +232,9 @@ const App: React.FC = () => {
     const result = await api.resetPassword(email, token, newPassword);
     if (result.token) {
       localStorage.setItem('delta_token', result.token);
+      if (result.refreshToken) {
+        localStorage.setItem('delta_refresh_token', result.refreshToken);
+      }
     }
   }, []);
 
@@ -470,6 +487,8 @@ const App: React.FC = () => {
             onGoogleSignIn={handleGoogleSignIn}
             onBack={() => setView('shelf')}
             error={authError}
+            language={language}
+            onLanguageChange={(lang) => setLanguage(lang)}
           />
         );
 

@@ -1,5 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { translations, Language } from '../i18n';
 
 declare global {
   interface Window {
@@ -15,6 +16,8 @@ interface AuthViewProps {
   onGoogleSignIn: (credential: string) => Promise<any>;
   onBack: () => void;
   error: string | null;
+  language?: Language;
+  onLanguageChange?: (lang: Language) => void;
 }
 
 const AuthView: React.FC<AuthViewProps> = ({
@@ -24,8 +27,13 @@ const AuthView: React.FC<AuthViewProps> = ({
   onResetPassword,
   onGoogleSignIn,
   onBack,
-  error
+  error,
+  language: propLanguage,
+  onLanguageChange,
 }) => {
+  const lang = propLanguage || (localStorage.getItem('delta_language') as Language) || 'en';
+  const t = translations[lang];
+
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,38 +43,70 @@ const AuthView: React.FC<AuthViewProps> = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [devHint, setDevHint] = useState<string | null>(null);
-  const [googleReady, setGoogleReady] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
+  // Google Sign-In button ref
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+  const googleInitialized = useRef(false);
+
+  // Initialize Google Sign-In with renderButton (more reliable than prompt)
   useEffect(() => {
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     if (!googleClientId) return;
 
-    const initializeGoogle = () => {
-      if (!window.google?.accounts?.id) return false;
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response: any) => {
-          try {
-            setLocalError(null);
-            setInfoMessage(null);
-            await onGoogleSignIn(response.credential);
-          } catch (err: any) {
-            setLocalError(err.message || 'Google sign-in failed');
-          }
-        },
+    const renderGoogleButton = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return false;
+
+      if (!googleInitialized.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response: any) => {
+            if (response.credential) {
+              try {
+                setLocalError(null);
+                setInfoMessage(null);
+                await onGoogleSignIn(response.credential);
+              } catch (err: any) {
+                setLocalError(err.message || t.errors.generic);
+              }
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        googleInitialized.current = true;
+      }
+
+      // Render the official Google button
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        width: googleBtnRef.current.offsetWidth,
+        text: mode === 'register' ? 'signup_with' : 'signin_with',
+        shape: 'pill',
+        locale: lang === 'fr' ? 'fr' : 'en',
       });
-      setGoogleReady(true);
+
       return true;
     };
 
-    if (initializeGoogle()) return;
+    if (renderGoogleButton()) return;
+
+    // Retry until Google SDK loads
     const interval = window.setInterval(() => {
-      if (initializeGoogle()) {
+      if (renderGoogleButton()) {
         window.clearInterval(interval);
       }
     }, 300);
+
     return () => window.clearInterval(interval);
-  }, [onGoogleSignIn]);
+  }, [onGoogleSignIn, mode, lang]);
+
+  const switchLang = useCallback((newLang: Language) => {
+    localStorage.setItem('delta_language', newLang);
+    if (onLanguageChange) onLanguageChange(newLang);
+  }, [onLanguageChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,26 +119,26 @@ const AuthView: React.FC<AuthViewProps> = ({
         await onLogin(email, password);
       } else if (mode === 'register') {
         if (password.length < 6) {
-          setLocalError('Password must be at least 6 characters');
+          setLocalError(t.auth.password_min_length);
           setLoading(false);
           return;
         }
         await onRegister(email, password, name);
       } else if (mode === 'forgot') {
         const result = await onForgotPassword(email);
-        setInfoMessage('Password reset code sent. Enter it below.');
+        setInfoMessage(t.auth.reset_link_sent);
         if (result?.devResetToken) {
           setDevHint(`Dev reset token: ${result.devResetToken}`);
         }
         setMode('reset');
       } else if (mode === 'reset') {
         if (password.length < 6) {
-          setLocalError('Password must be at least 6 characters');
+          setLocalError(t.auth.password_min_length);
           setLoading(false);
           return;
         }
         await onResetPassword(email, resetToken, password);
-        setInfoMessage('Password updated. Please sign in.');
+        setInfoMessage(t.auth.password_updated);
         setPassword('');
         setResetToken('');
         setMode('login');
@@ -111,23 +151,30 @@ const AuthView: React.FC<AuthViewProps> = ({
   };
 
   const displayError = localError || error;
+
   const titles: Record<typeof mode, string> = {
-    login: 'Welcome Back',
-    register: 'Create Account',
-    forgot: 'Forgot Password',
-    reset: 'Set a New Password',
+    login: t.auth.welcome_back,
+    register: t.auth.create_account,
+    forgot: t.auth.forgot_password,
+    reset: t.auth.reset_password,
   };
   const subtitles: Record<typeof mode, string> = {
-    login: 'Sign in to sync your reading progress across devices',
-    register: 'Create an account to save progress and unlock books with ads',
-    forgot: 'We will send you a reset code',
-    reset: 'Enter your reset code and new password',
+    login: lang === 'fr'
+      ? 'Connectez-vous pour synchroniser votre progression'
+      : 'Sign in to sync your reading progress across devices',
+    register: lang === 'fr'
+      ? 'Creez un compte pour sauvegarder et debloquer des livres'
+      : 'Create an account to save progress and unlock books with ads',
+    forgot: lang === 'fr'
+      ? 'Nous vous enverrons un code de reinitialisation'
+      : 'We will send you a reset code',
+    reset: t.auth.enter_reset_code,
   };
   const submitLabels: Record<typeof mode, string> = {
-    login: 'Sign In',
-    register: 'Create Account',
-    forgot: 'Send Reset Code',
-    reset: 'Reset Password',
+    login: t.auth.sign_in,
+    register: t.auth.create_account,
+    forgot: lang === 'fr' ? 'Envoyer le code' : 'Send Reset Code',
+    reset: t.auth.reset_password,
   };
 
   return (
@@ -145,20 +192,26 @@ const AuthView: React.FC<AuthViewProps> = ({
             <span className="text-white text-2xl font-display font-bold">&#x2726;</span>
           </div>
           <h2 className="text-4xl font-display text-white font-medium mb-4 leading-tight">
-            Begin Your Journey<br />of Transformation
+            {lang === 'fr'
+              ? <>Commencez votre<br />voyage de transformation</>
+              : <>Begin Your Journey<br />of Transformation</>}
           </h2>
           <div className="w-16 h-px bg-amber-400/50 mx-auto mb-6" />
           <p className="text-white/60 font-serif italic text-lg max-w-sm leading-relaxed mb-8">
-            "The reading of all good books is like a conversation with the finest minds of past centuries."
+            {lang === 'fr'
+              ? '"La lecture de tous les bons livres est comme une conversation avec les plus grands esprits des siecles passes."'
+              : '"The reading of all good books is like a conversation with the finest minds of past centuries."'}
           </p>
-          <p className="text-amber-400/70 text-xs font-bold uppercase tracking-[0.3em]">— Rene Descartes</p>
+          <p className="text-amber-400/70 text-xs font-bold uppercase tracking-[0.3em]">
+            {lang === 'fr' ? '— Rene Descartes' : '— Rene Descartes'}
+          </p>
 
           {/* Stats */}
           <div className="mt-12 flex items-center gap-8">
             {[
-              { value: '4', label: 'Books' },
-              { value: '80', label: 'Chapters' },
-              { value: '2,847+', label: 'Readers' },
+              { value: '4', label: lang === 'fr' ? 'Livres' : 'Books' },
+              { value: '80', label: lang === 'fr' ? 'Chapitres' : 'Chapters' },
+              { value: '2,847+', label: lang === 'fr' ? 'Lecteurs' : 'Readers' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
                 <div className="text-2xl font-display font-bold text-white">{stat.value}</div>
@@ -178,16 +231,38 @@ const AuthView: React.FC<AuthViewProps> = ({
         </div>
 
         <div className="relative w-full max-w-md animate-scaleIn">
-          {/* Back button */}
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-themed-muted hover:text-themed mb-8 transition-colors text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Library
-          </button>
+          {/* Top bar: Back + Language switcher */}
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-themed-muted hover:text-themed transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {t.common.back}
+            </button>
+
+            {/* Language switcher */}
+            <div className="flex items-center gap-1 bg-themed-muted rounded-full p-1">
+              <button
+                onClick={() => switchLang('en')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  lang === 'en' ? 'bg-stone-800 text-white shadow' : 'text-themed-muted hover:text-themed'
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => switchLang('fr')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  lang === 'fr' ? 'bg-stone-800 text-white shadow' : 'text-themed-muted hover:text-themed'
+                }`}
+              >
+                FR
+              </button>
+            </div>
+          </div>
 
           {/* Card */}
           <div className="bg-themed-card rounded-3xl border border-themed p-8 sm:p-10 shadow-xl">
@@ -216,7 +291,7 @@ const AuthView: React.FC<AuthViewProps> = ({
               </div>
             )}
             {devHint && (
-              <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs text-center">
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs text-center font-mono">
                 {devHint}
               </div>
             )}
@@ -225,12 +300,14 @@ const AuthView: React.FC<AuthViewProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'register' && (
                 <div>
-                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Full Name</label>
+                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">
+                    {t.common.name}
+                  </label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
+                    placeholder={t.auth.enter_name}
                     className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
                     required
                   />
@@ -238,43 +315,77 @@ const AuthView: React.FC<AuthViewProps> = ({
               )}
 
               <div>
-                <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Email</label>
+                <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">
+                  {t.common.email}
+                </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={t.auth.enter_email}
                   className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
                   required
+                  autoComplete="email"
                 />
               </div>
 
               {mode === 'reset' && (
                 <div>
-                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">Reset Code</label>
+                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">
+                    {lang === 'fr' ? 'Code de reinitialisation' : 'Reset Code'}
+                  </label>
                   <input
                     type="text"
                     value={resetToken}
                     onChange={(e) => setResetToken(e.target.value)}
-                    placeholder="Paste reset code"
-                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
+                    placeholder={lang === 'fr' ? 'Collez le code recu' : 'Paste reset code'}
+                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm font-mono"
                     required
+                    autoComplete="one-time-code"
                   />
                 </div>
               )}
 
               {(mode === 'login' || mode === 'register' || mode === 'reset') && (
                 <div>
-                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">{mode === 'reset' ? 'New Password' : 'Password'}</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === 'register' ? 'Min. 6 characters' : mode === 'reset' ? 'Create a new password' : 'Your password'}
-                    className="w-full px-4 py-3.5 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
-                    required
-                    minLength={6}
-                  />
+                  <label className="block text-themed-sub text-xs font-bold uppercase tracking-wider mb-2">
+                    {mode === 'reset' ? t.auth.new_password : t.common.password}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={
+                        mode === 'register'
+                          ? t.auth.password_min_length
+                          : mode === 'reset'
+                            ? (lang === 'fr' ? 'Nouveau mot de passe' : 'Create a new password')
+                            : t.auth.enter_password
+                      }
+                      className="w-full px-4 py-3.5 pr-12 bg-themed-muted border border-themed rounded-xl text-themed outline-none focus:ring-2 focus:ring-stone-300 transition-all text-sm"
+                      required
+                      minLength={6}
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-themed-muted hover:text-themed p-1"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -286,7 +397,7 @@ const AuthView: React.FC<AuthViewProps> = ({
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    {t.common.loading}
                   </span>
                 ) : (
                   submitLabels[mode]
@@ -300,22 +411,29 @@ const AuthView: React.FC<AuthViewProps> = ({
                   onClick={() => { setMode('forgot'); setLocalError(null); setInfoMessage(null); }}
                   className="text-xs font-bold uppercase tracking-wider text-themed-muted hover:text-themed"
                 >
-                  Forgot password?
+                  {t.auth.forgot_password}?
                 </button>
               </div>
             )}
 
+            {/* Google Sign-In */}
             {(mode === 'login' || mode === 'register') && (
               <div className="mt-6">
-                <button
-                  onClick={() => window.google?.accounts?.id?.prompt()}
-                  disabled={!googleReady}
-                  className="w-full py-3 rounded-xl border border-themed bg-themed-muted text-themed text-xs font-bold uppercase tracking-wider hover:bg-themed transition-all disabled:opacity-50"
-                >
-                  Continue with Google
-                </button>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex-1 h-px bg-themed border-themed" />
+                  <span className="text-themed-muted text-xs font-bold uppercase tracking-wider">
+                    {t.common.or}
+                  </span>
+                  <div className="flex-1 h-px bg-themed border-themed" />
+                </div>
+
+                {/* Rendered Google button (official SDK) */}
+                <div ref={googleBtnRef} className="flex justify-center" />
+
                 {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-                  <p className="text-themed-muted text-[10px] text-center mt-2">Google Sign-In not configured</p>
+                  <p className="text-themed-muted text-[10px] text-center mt-2">
+                    {lang === 'fr' ? 'Google Sign-In non configure' : 'Google Sign-In not configured'}
+                  </p>
                 )}
               </div>
             )}
@@ -324,32 +442,32 @@ const AuthView: React.FC<AuthViewProps> = ({
             <div className="mt-6 text-center">
               {mode === 'login' && (
                 <p className="text-themed-muted text-sm">
-                  Don't have an account?
+                  {t.auth.dont_have_account}
                   <button
                     onClick={() => { setMode('register'); setLocalError(null); setInfoMessage(null); }}
                     className="ml-1 font-bold text-themed hover:underline"
                   >
-                    Sign Up
+                    {t.auth.sign_up}
                   </button>
                 </p>
               )}
               {mode === 'register' && (
                 <p className="text-themed-muted text-sm">
-                  Already have an account?
+                  {t.auth.already_have_account}
                   <button
                     onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); }}
                     className="ml-1 font-bold text-themed hover:underline"
                   >
-                    Sign In
+                    {t.auth.sign_in}
                   </button>
                 </p>
               )}
               {(mode === 'forgot' || mode === 'reset') && (
                 <button
-                  onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); }}
+                  onClick={() => { setMode('login'); setLocalError(null); setInfoMessage(null); setDevHint(null); }}
                   className="text-sm font-bold text-themed hover:underline"
                 >
-                  Back to Sign In
+                  {lang === 'fr' ? 'Retour a la connexion' : 'Back to Sign In'}
                 </button>
               )}
             </div>
@@ -361,19 +479,19 @@ const AuthView: React.FC<AuthViewProps> = ({
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  Secure
+                  {lang === 'fr' ? 'Securise' : 'Secure'}
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  Ad supported
+                  {lang === 'fr' ? 'Avec publicites' : 'Ad supported'}
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
-                  No subscription
+                  {lang === 'fr' ? 'Sans abonnement' : 'No subscription'}
                 </div>
               </div>
             </div>
@@ -381,7 +499,11 @@ const AuthView: React.FC<AuthViewProps> = ({
 
           {/* Motivational quote below card */}
           <div className="mt-8 text-center">
-            <p className="text-themed-muted text-xs font-serif italic">"A room without books is like a body without a soul."</p>
+            <p className="text-themed-muted text-xs font-serif italic">
+              {lang === 'fr'
+                ? '"Une piece sans livres est comme un corps sans ame."'
+                : '"A room without books is like a body without a soul."'}
+            </p>
             <p className="text-themed-muted text-[10px] font-bold uppercase tracking-wider mt-1">— Marcus Tullius Cicero</p>
           </div>
         </div>

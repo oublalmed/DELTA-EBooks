@@ -1,6 +1,6 @@
 /**
  * Ad-Based Premium Access Routes
- * 
+ *
  * Manages premium access granted via rewarded ads:
  * - Check premium status
  * - Grant premium access after watching ad
@@ -26,34 +26,34 @@ const MAX_ADS_PER_DAY = 5;       // Limit ads per day (fraud prevention)
 // ══════════════════════════════════════════════════════════════════
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const user = await db.prepare('SELECT premium_until, trial_used FROM users WHERE id = ?')
-      .get(req.user.id);
-    
-    const now = new Date();
-    const premiumUntil = user.premium_until ? new Date(user.premium_until) : null;
-    const isPremium = premiumUntil && premiumUntil > now;
-    
+    const user = await db.get(
+      'SELECT premium_until, trial_used FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    const now = new Date().toISOString();
+    const isPremium = user.premium_until && user.premium_until > now;
+
     // Check trial status
-    const trial = await db.prepare('SELECT * FROM user_trials WHERE user_id = ?').get(req.user.id);
-    const trialEnds = trial?.trial_ends ? new Date(trial.trial_ends) : null;
-    const trialActive = trial && !trial.trial_used && trialEnds && trialEnds > now;
+    const trial = await db.get('SELECT * FROM user_trials WHERE user_id = ?', [req.user.id]);
+    const trialActive = trial && !trial.trial_used && trial.trial_ends > now;
     const trialAvailable = !trial && !user.trial_used;
-    
+
     // Get active premium access record
-    const activeAccess = await db.prepare(`
-      SELECT * FROM premium_access 
-      WHERE user_id = ? AND expires_at > NOW()
+    const activeAccess = await db.get(`
+      SELECT * FROM premium_access
+      WHERE user_id = ? AND expires_at > ?
       ORDER BY expires_at DESC LIMIT 1
-    `).get(req.user.id);
-    
+    `, [req.user.id, now]);
+
     // Count ads watched today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const adsWatchedToday = await db.prepare(`
-      SELECT COUNT(*) as count FROM premium_access_logs 
+    const adsWatchedToday = await db.get(`
+      SELECT COUNT(*) as count FROM premium_access_logs
       WHERE user_id = ? AND action = 'ad_watched' AND created_at >= ?
-    `).get(req.user.id, todayStart);
-    
+    `, [req.user.id, todayStart.toISOString()]);
+
     res.json({
       isPremium: isPremium || trialActive,
       premiumUntil: isPremium ? premiumUntil.toISOString() : (trialActive ? trialEnds.toISOString() : null),
@@ -81,26 +81,26 @@ router.get('/status', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 router.post('/start-trial', requireAuth, async (req, res) => {
   try {
-    const user = await db.prepare('SELECT trial_used FROM users WHERE id = ?').get(req.user.id);
-    const existingTrial = await db.prepare('SELECT * FROM user_trials WHERE user_id = ?').get(req.user.id);
-    
+    const user = await db.get('SELECT trial_used FROM users WHERE id = ?', [req.user.id]);
+    const existingTrial = await db.get('SELECT * FROM user_trials WHERE user_id = ?', [req.user.id]);
+
     if (user.trial_used || existingTrial) {
       return res.status(400).json({ error: 'Trial already used.' });
     }
-    
+
     const trialEnds = new Date();
     trialEnds.setDate(trialEnds.getDate() + TRIAL_DURATION_DAYS);
-    
-    await db.prepare(`
+
+    await db.run(`
       INSERT INTO user_trials (user_id, trial_ends) VALUES (?, ?)
-    `).run(req.user.id, trialEnds);
-    
+    `, [req.user.id, trialEnds.toISOString()]);
+
     // Log the action
-    await db.prepare(`
+    await db.run(`
       INSERT INTO premium_access_logs (user_id, action, access_type, duration_days, ip_address)
       VALUES (?, 'trial_started', 'trial', ?, ?)
-    `).run(req.user.id, TRIAL_DURATION_DAYS, req.ip);
-    
+    `, [req.user.id, TRIAL_DURATION_DAYS, req.ip]);
+
     res.json({
       success: true,
       message: `Your ${TRIAL_DURATION_DAYS}-day trial has started!`,
@@ -116,7 +116,7 @@ router.post('/start-trial', requireAuth, async (req, res) => {
 // POST /api/premium/grant-access - Grant premium after ad watched
 // ══════════════════════════════════════════════════════════════════
 router.post('/grant-access', requireAuth, async (req, res) => {
-  const { 
+  const {
     adNetwork = 'admob',
     adUnitId,
     rewardAmount = 1,
@@ -124,27 +124,27 @@ router.post('/grant-access', requireAuth, async (req, res) => {
     platform,
     verificationToken // For server-side ad verification (optional)
   } = req.body;
-  
+
   try {
     // Check daily limit
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const adsWatchedToday = await db.prepare(`
-      SELECT COUNT(*) as count FROM premium_access_logs 
+    const adsWatchedToday = await db.get(`
+      SELECT COUNT(*) as count FROM premium_access_logs
       WHERE user_id = ? AND action = 'ad_watched' AND created_at >= ?
-    `).get(req.user.id, todayStart);
-    
+    `, [req.user.id, todayStart.toISOString()]);
+
     if (adsWatchedToday.count >= MAX_ADS_PER_DAY) {
-      return res.status(429).json({ 
+      return res.status(429).json({
         error: 'Daily ad limit reached. Please try again tomorrow.',
         maxAdsPerDay: MAX_ADS_PER_DAY
       });
     }
-    
+
     // Calculate new expiry date
     const now = new Date();
-    const user = await db.prepare('SELECT premium_until FROM users WHERE id = ?').get(req.user.id);
-    
+    const user = await db.get('SELECT premium_until FROM users WHERE id = ?', [req.user.id]);
+
     // If already premium, extend from current expiry; otherwise from now
     let expiresAt;
     if (user.premium_until && new Date(user.premium_until) > now) {
@@ -153,13 +153,13 @@ router.post('/grant-access', requireAuth, async (req, res) => {
       expiresAt = now;
     }
     expiresAt.setDate(expiresAt.getDate() + PREMIUM_DURATION_DAYS);
-    
+
     // Create premium access record
-    await db.prepare(`
-      INSERT INTO premium_access 
+    await db.run(`
+      INSERT INTO premium_access
       (user_id, access_type, expires_at, duration_days, ad_network, ad_unit_id, reward_amount, device_id, platform)
       VALUES (?, 'ad_reward', ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
       req.user.id,
       expiresAt,
       PREMIUM_DURATION_DAYS,
@@ -168,28 +168,27 @@ router.post('/grant-access', requireAuth, async (req, res) => {
       rewardAmount,
       deviceId || null,
       platform || null
-    );
-    
+    ]);
+
     // Update user's premium_until
-    await db.prepare('UPDATE users SET premium_until = ? WHERE id = ?')
-      .run(expiresAt, req.user.id);
-    
+    await db.run('UPDATE users SET premium_until = ? WHERE id = ?', [expiresAt.toISOString(), req.user.id]);
+
     // Mark trial as used if exists
-    await db.prepare('UPDATE user_trials SET trial_used = 1 WHERE user_id = ?').run(req.user.id);
-    await db.prepare('UPDATE users SET trial_used = 1 WHERE id = ?').run(req.user.id);
-    
+    await db.run('UPDATE user_trials SET trial_used = 1 WHERE user_id = ?', [req.user.id]);
+    await db.run('UPDATE users SET trial_used = 1 WHERE id = ?', [req.user.id]);
+
     // Log the action
-    await db.prepare(`
-      INSERT INTO premium_access_logs 
+    await db.run(`
+      INSERT INTO premium_access_logs
       (user_id, action, access_type, duration_days, ip_address, device_info)
       VALUES (?, 'ad_watched', 'ad_reward', ?, ?, ?)
-    `).run(
+    `, [
       req.user.id,
       PREMIUM_DURATION_DAYS,
       req.ip,
       JSON.stringify({ deviceId, platform, adNetwork, adUnitId })
-    );
-    
+    ]);
+
     res.json({
       success: true,
       message: `Premium access granted for ${PREMIUM_DURATION_DAYS} days!`,
@@ -207,20 +206,20 @@ router.post('/grant-access', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 router.get('/history', requireAuth, async (req, res) => {
   try {
-    const history = await db.prepare(`
-      SELECT * FROM premium_access 
-      WHERE user_id = ? 
-      ORDER BY granted_at DESC 
+    const history = await db.all(`
+      SELECT * FROM premium_access
+      WHERE user_id = ?
+      ORDER BY granted_at DESC
       LIMIT 50
-    `).all(req.user.id);
-    
-    const logs = await db.prepare(`
-      SELECT * FROM premium_access_logs 
-      WHERE user_id = ? 
-      ORDER BY created_at DESC 
+    `, [req.user.id]);
+
+    const logs = await db.all(`
+      SELECT * FROM premium_access_logs
+      WHERE user_id = ?
+      ORDER BY created_at DESC
       LIMIT 100
-    `).all(req.user.id);
-    
+    `, [req.user.id]);
+
     res.json({ history, logs });
   } catch (err) {
     console.error('Failed to get premium history:', err);
@@ -233,7 +232,7 @@ router.get('/history', requireAuth, async (req, res) => {
 // Used for AdMob server-side verification callback
 // ══════════════════════════════════════════════════════════════════
 router.post('/verify-ad', (req, res) => {
-  const { 
+  const {
     ad_network,
     ad_unit,
     reward_amount,
@@ -244,10 +243,10 @@ router.post('/verify-ad', (req, res) => {
     signature,
     key_id
   } = req.query;
-  
+
   // TODO: Implement proper AdMob SSV verification
   // https://developers.google.com/admob/android/ssv
-  
+
   // For now, just log the callback
   console.log('AdMob SSV Callback:', {
     ad_network,
@@ -257,7 +256,7 @@ router.post('/verify-ad', (req, res) => {
     transaction_id,
     timestamp
   });
-  
+
   // Return 200 to acknowledge receipt
   res.status(200).send('OK');
 });
@@ -268,26 +267,28 @@ router.post('/verify-ad', (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 export async function requirePremium(req, res, next) {
   try {
-    const user = await db.prepare('SELECT premium_until, trial_used FROM users WHERE id = ?')
-      .get(req.user.id);
-    
-    const now = new Date();
-    
+    const user = await db.get(
+      'SELECT premium_until, trial_used FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    const now = new Date().toISOString();
+
     // Check premium status
     if (user.premium_until && new Date(user.premium_until) > now) {
       req.isPremium = true;
       return next();
     }
-    
+
     // Check trial status
-    const trial = await db.prepare('SELECT * FROM user_trials WHERE user_id = ?').get(req.user.id);
-    if (trial && !trial.trial_used && new Date(trial.trial_ends) > now) {
+    const trial = await db.get('SELECT * FROM user_trials WHERE user_id = ?', [req.user.id]);
+    if (trial && !trial.trial_used && trial.trial_ends > now) {
       req.isPremium = true;
       req.isTrial = true;
       return next();
     }
-    
-    return res.status(403).json({ 
+
+    return res.status(403).json({
       error: 'Premium access required.',
       message: 'Watch a rewarded ad to unlock premium features for 7 days!'
     });
@@ -303,19 +304,19 @@ export async function optionalPremium(req, res, next) {
       req.isPremium = false;
       return next();
     }
-    
-    const user = await db.prepare('SELECT premium_until FROM users WHERE id = ?').get(req.user.id);
-    const now = new Date();
-    
-    req.isPremium = user.premium_until && new Date(user.premium_until) > now;
-    
+
+    const user = await db.get('SELECT premium_until FROM users WHERE id = ?', [req.user.id]);
+    const now = new Date().toISOString();
+
+    req.isPremium = user.premium_until && user.premium_until > now;
+
     // Check trial
     if (!req.isPremium) {
-      const trial = await db.prepare('SELECT * FROM user_trials WHERE user_id = ?').get(req.user.id);
-      req.isPremium = trial && !trial.trial_used && new Date(trial.trial_ends) > now;
+      const trial = await db.get('SELECT * FROM user_trials WHERE user_id = ?', [req.user.id]);
+      req.isPremium = trial && !trial.trial_used && trial.trial_ends > now;
       req.isTrial = req.isPremium;
     }
-    
+
     next();
   } catch (err) {
     req.isPremium = false;

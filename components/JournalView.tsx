@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../services/api';
+import { translations, Language } from '../i18n';
 import {
   JournalEntryFull,
   JournalEntryInput,
@@ -28,6 +29,9 @@ import {
 interface JournalViewProps {
   onBack: () => void;
   onOpenCommunity?: () => void;
+  language?: Language;
+  bookId?: string;
+  bookTitle?: string;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -74,24 +78,31 @@ const getFirstDayOfMonth = (year: number, month: number): number => new Date(yea
 // COMPONENT
 // ══════════════════════════════════════════════════════════════════
 
-const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) => {
+const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity, language, bookId, bookTitle }) => {
+  const lang = language || (localStorage.getItem('delta_language') as Language) || 'en';
+  const t = translations[lang];
+
   // State
   const [entries, setEntries] = useState<JournalEntryFull[]>([]);
   const [calendarData, setCalendarData] = useState<Record<string, JournalCalendarDay[]>>({});
   const [analytics, setAnalytics] = useState<JournalAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
+  // Download state
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
   // Calendar state
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<string>(formatDate(today));
-  
+
   // View state
   const [activeTab, setActiveTab] = useState<'calendar' | 'timeline' | 'analytics'>('calendar');
   const [showEditor, setShowEditor] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntryFull | null>(null);
-  
+
   // Form state
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -118,7 +129,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
     setLoading(true);
     try {
       const [entriesData, analyticsData] = await Promise.all([
-        api.getJournalEntries(),
+        api.getJournalEntries(bookId ? { book_id: bookId } : undefined),
         api.getJournalAnalytics('month'),
       ]);
       setEntries(entriesData);
@@ -209,6 +220,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
         tags: formTags,
         image_url: formImageUrl || undefined,
         is_public: formIsPublic,
+        book_id: bookId,
       };
       
       if (editingEntry) {
@@ -255,6 +267,21 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
   const removeTag = useCallback((tag: string) => {
     setFormTags(prev => prev.filter(t => t !== tag));
   }, []);
+
+  // ── Download handler ──
+  const handleDownload = useCallback(async (format: 'pdf' | 'txt' | 'md') => {
+    setDownloading(true);
+    setShowDownloadMenu(false);
+    try {
+      await api.downloadJournal(format, bookId);
+      setSavedMessage(true);
+      setTimeout(() => setSavedMessage(false), 3000);
+    } catch (err) {
+      console.error('Download failed:', err);
+    } finally {
+      setDownloading(false);
+    }
+  }, [bookId]);
   
   // ── Derived data ──
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -305,37 +332,81 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Back
+              {t.common.back}
             </button>
             <div className="flex items-center gap-2">
+              {/* Download button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                  disabled={downloading || entries.length === 0}
+                  className="flex items-center gap-2 bg-themed-card border border-themed px-4 py-2.5 rounded-full text-themed text-xs font-bold hover:bg-themed-muted transition-all disabled:opacity-50"
+                >
+                  {downloading ? (
+                    <div className="w-4 h-4 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  )}
+                  {t.common.download}
+                </button>
+                {showDownloadMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-themed-card border border-themed rounded-xl shadow-xl z-50 overflow-hidden w-44">
+                    {[
+                      { format: 'pdf' as const, label: 'PDF', icon: '📄' },
+                      { format: 'txt' as const, label: 'TXT', icon: '📝' },
+                      { format: 'md' as const, label: 'Markdown', icon: '📋' },
+                    ].map(({ format, label, icon }) => (
+                      <button
+                        key={format}
+                        onClick={() => handleDownload(format)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-themed hover:bg-themed-muted transition-colors"
+                      >
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {onOpenCommunity && (
                 <button onClick={onOpenCommunity} className="flex items-center gap-2 bg-themed-card border border-themed px-4 py-2.5 rounded-full text-themed text-xs font-bold hover:bg-themed-muted transition-all">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  Community
+                  {lang === 'fr' ? 'Communaute' : 'Community'}
                 </button>
               )}
-              <button 
-                onClick={() => openNewEntry()} 
+              <button
+                onClick={() => openNewEntry()}
                 className="flex items-center gap-2 bg-stone-800 text-white px-4 py-2.5 rounded-full text-xs font-bold hover:bg-stone-700 transition-all shadow-lg"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                 </svg>
-                New Entry
+                {t.journal.new_entry}
               </button>
             </div>
           </div>
-          
+
           {/* Title */}
           <div className="text-center mb-6 animate-fadeIn">
             <div className="ornament-divider mb-4">
-              <span className="text-xs tracking-[0.5em] uppercase font-bold" style={{ color: 'var(--accent)' }}>Personal Journal</span>
+              <span className="text-xs tracking-[0.5em] uppercase font-bold" style={{ color: 'var(--accent)' }}>
+                {bookTitle
+                  ? (lang === 'fr' ? `Journal : ${bookTitle}` : `Journal: ${bookTitle}`)
+                  : (lang === 'fr' ? 'Journal Personnel' : 'Personal Journal')}
+              </span>
             </div>
-            <h1 className="text-4xl sm:text-5xl font-display text-themed mb-3 font-medium">My Journal</h1>
+            <h1 className="text-4xl sm:text-5xl font-display text-themed mb-3 font-medium">
+              {t.journal.my_journal}
+            </h1>
             <p className="text-themed-muted font-serif text-base italic max-w-lg mx-auto">
-              Record your feelings, experiences, adventures, and growth
+              {lang === 'fr'
+                ? 'Enregistrez vos sentiments, experiences, aventures et votre croissance'
+                : 'Record your feelings, experiences, adventures, and growth'}
             </p>
           </div>
           
@@ -351,7 +422,11 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
                     : 'bg-themed-card border border-themed text-themed-sub hover:bg-themed-muted'
                 }`}
               >
-                {tab === 'calendar' ? '📅 Calendar' : tab === 'timeline' ? '📜 Timeline' : '📊 Analytics'}
+                {tab === 'calendar'
+                  ? `📅 ${t.journal.calendar_view}`
+                  : tab === 'timeline'
+                    ? `📜 ${t.journal.timeline_view}`
+                    : `📊 ${t.journal.analytics}`}
               </button>
             ))}
           </div>
@@ -668,7 +743,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-themed">
               <div>
-                <h2 className="font-display text-themed text-xl">{editingEntry ? 'Edit Entry' : 'New Entry'}</h2>
+                <h2 className="font-display text-themed text-xl">{editingEntry ? t.journal.edit_entry : t.journal.new_entry}</h2>
                 <p className="text-themed-muted text-xs">{selectedDateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
               </div>
               <button onClick={() => setShowEditor(false)} className="p-2 rounded-full hover:bg-themed-muted transition-colors">
@@ -834,7 +909,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
                   onClick={() => handleDelete(editingEntry.id)}
                   className="px-4 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-lg transition-colors"
                 >
-                  Delete Entry
+                  {t.journal.delete_entry}
                 </button>
               ) : (
                 <div />
@@ -844,7 +919,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
                   onClick={() => setShowEditor(false)}
                   className="px-4 py-2 text-themed-sub text-sm font-bold hover:bg-themed-muted rounded-lg transition-colors"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
                 <button
                   onClick={handleSave}
@@ -855,7 +930,7 @@ const JournalView: React.FC<JournalViewProps> = ({ onBack, onOpenCommunity }) =>
                       : 'bg-themed-muted text-themed-muted cursor-not-allowed'
                   }`}
                 >
-                  {saving ? 'Saving...' : editingEntry ? 'Update Entry' : 'Save Entry'}
+                  {saving ? t.common.loading : editingEntry ? t.journal.update_entry : t.journal.save_entry}
                 </button>
               </div>
             </div>

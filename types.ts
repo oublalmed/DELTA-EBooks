@@ -170,11 +170,13 @@ export interface JournalEntryInput {
   tags?: string[];
   image_url?: string;
   is_public?: boolean;
+  book_id?: string;
 }
 
 export interface JournalEntryFull {
   id: number;
   user_id: number;
+  book_id: string | null;
   date: string;
   title: string;
   category: JournalCategory;
@@ -191,6 +193,7 @@ export interface JournalEntryFull {
   author_name?: string;
   comments_count?: number;
   is_liked?: boolean;
+  book_title?: string;
 }
 
 export interface JournalComment {

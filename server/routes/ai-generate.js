@@ -9,7 +9,7 @@ const router = Router();
 router.use(requireAdmin);
 
 // Initialize Gemini AI
-const genAI = process.env.GEMINI_API_KEY 
+const genAI = process.env.GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
 
@@ -59,12 +59,12 @@ Format the response as JSON with the following structure:
   ]
 }`;
 
-    const genRecord = await db.prepare(`
+    const genRecord = await db.run(`
       INSERT INTO ai_generations (type, prompt, model, status)
       VALUES (?, ?, ?, ?)
-    `).run('ebook', prompt, 'gemini-pro', 'processing');
+    `, ['ebook', prompt, 'gemini-pro', 'processing']);
 
-    const generationId = genRecord.lastInsertRowid;
+    const generationId = genRecord.insertId;
 
     // Generate with Gemini
     try {
@@ -88,10 +88,10 @@ Format the response as JSON with the following structure:
       }
 
       // Create internal ebook
-      const ebookResult = await db.prepare(`
+      const ebookResult = await db.run(`
         INSERT INTO internal_ebooks (title, subtitle, description, content, category, status, linked_book_id, ai_generated, ai_model, ai_prompt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `, [
         parsedContent.title || title,
         parsedContent.subtitle || null,
         parsedContent.description || topic,
@@ -102,36 +102,36 @@ Format the response as JSON with the following structure:
         1,
         'gemini-pro',
         prompt
-      );
+      ]);
 
-      const internalEbookId = ebookResult.lastInsertRowid;
+      const internalEbookId = ebookResult.insertId;
 
       // Create chapters if parsed successfully
       if (parsedContent.chapters && Array.isArray(parsedContent.chapters)) {
         for (const chapter of parsedContent.chapters) {
-          await db.prepare(`
+          await db.run(`
             INSERT INTO internal_ebook_chapters (ebook_id, chapter_number, title, content, notes, status)
             VALUES (?, ?, ?, ?, ?, ?)
-          `).run(
+          `, [
             internalEbookId,
             chapter.number || parsedContent.chapters.indexOf(chapter) + 1,
             chapter.title || `Chapter ${chapter.number}`,
             chapter.content || '',
             chapter.takeaways ? JSON.stringify(chapter.takeaways) : null,
             'draft'
-          );
+          ]);
         }
       }
 
       // Update generation record
-      await db.prepare(`
+      await db.run(`
         UPDATE ai_generations SET
           result = ?,
           status = 'completed',
           internal_ebook_id = ?,
           completed_at = NOW()
         WHERE id = ?
-      `).run(JSON.stringify(parsedContent), internalEbookId, generationId);
+      `, [JSON.stringify(parsedContent), internalEbookId, generationId]);
 
       res.json({
         success: true,
@@ -143,14 +143,14 @@ Format the response as JSON with the following structure:
 
     } catch (aiError) {
       console.error('AI generation error:', aiError);
-      
-      await db.prepare(`
+
+      await db.run(`
         UPDATE ai_generations SET
           status = 'failed',
           error_message = ?,
           completed_at = NOW()
         WHERE id = ?
-      `).run(aiError.message, generationId);
+      `, [aiError.message, generationId]);
 
       res.status(500).json({ error: 'AI generation failed', details: aiError.message });
     }
@@ -195,31 +195,31 @@ Write in a flowing, narrative style that keeps readers engaged.`;
 
     // If linked to an internal ebook, save the chapter
     if (internal_ebook_id) {
-      const existingChapter = await db.prepare(`
-        SELECT id FROM internal_ebook_chapters 
+      const existingChapter = await db.get(`
+        SELECT id FROM internal_ebook_chapters
         WHERE ebook_id = ? AND chapter_number = ?
-      `).get(internal_ebook_id, chapter_number || 1);
+      `, [internal_ebook_id, chapter_number || 1]);
 
       if (existingChapter) {
-        await db.prepare(`
+        await db.run(`
           UPDATE internal_ebook_chapters SET
             content = ?,
             updated_at = NOW()
           WHERE id = ?
-        `).run(content, existingChapter.id);
+        `, [content, existingChapter.id]);
       } else {
-        await db.prepare(`
+        await db.run(`
           INSERT INTO internal_ebook_chapters (ebook_id, chapter_number, title, content, status)
           VALUES (?, ?, ?, ?, ?)
-        `).run(internal_ebook_id, chapter_number || 1, `Chapter ${chapter_number || 1}`, content, 'draft');
+        `, [internal_ebook_id, chapter_number || 1, `Chapter ${chapter_number || 1}`, content, 'draft']);
       }
     }
 
     // Log generation
-    await db.prepare(`
+    await db.run(`
       INSERT INTO ai_generations (type, prompt, model, result, status, internal_ebook_id, completed_at)
       VALUES (?, ?, ?, ?, ?, ?, NOW())
-    `).run('chapter', prompt, 'gemini-pro', content, 'completed', internal_ebook_id || null);
+    `, ['chapter', prompt, 'gemini-pro', content, 'completed', internal_ebook_id || null]);
 
     res.json({
       success: true,

@@ -8,12 +8,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Rate limiting middleware
-import { 
-  generalLimiter, 
-  authLimiter, 
-  passwordResetLimiter, 
-  adminLimiter, 
-  aiLimiter 
+import {
+  generalLimiter,
+  authLimiter,
+  passwordResetLimiter,
+  adminLimiter,
+  aiLimiter
 } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/auth.js';
@@ -32,6 +32,8 @@ import clientRoutes from './routes/client.js';
 import aiGenerateRoutes from './routes/ai-generate.js';
 // NEW: User progress routes (chapter reflections)
 import progressRoutes from './routes/progress.js';
+// PDF download routes
+import downloadRoutes from './routes/downloads.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -43,8 +45,23 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// ── Security Headers ──
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Prevent caching of API responses
+  if (_req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+  }
+  next();
+});
 
 // Request logging
 app.use((req, _res, next) => {
@@ -75,11 +92,11 @@ app.use('/api/client', clientRoutes);
 app.use('/api/admin/ai', aiLimiter, aiGenerateRoutes);
 // User progress routes (chapter reflections)
 app.use('/api/progress', progressRoutes);
+// PDF download routes
+app.use('/api/downloads', downloadRoutes);
 
 // ── Email subscription (simple) ──
 import db from './db.js';
-
-await db.init();
 
 app.post('/api/subscribe', express.json(), async (req, res) => {
   try {
@@ -87,8 +104,8 @@ app.post('/api/subscribe', express.json(), async (req, res) => {
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' });
     }
-    await db.prepare('INSERT IGNORE INTO email_subscribers (email, source) VALUES (?, ?)')
-      .run(email.toLowerCase().trim(), 'website');
+    await db.run('INSERT IGNORE INTO email_subscribers (email, source) VALUES (?, ?)',
+      [email.toLowerCase().trim(), 'website']);
     res.json({ success: true, message: 'Subscribed successfully!' });
   } catch (err) {
     console.error('Subscribe error:', err);
