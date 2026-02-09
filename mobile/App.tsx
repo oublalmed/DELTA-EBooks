@@ -43,8 +43,8 @@ const WEB_APP_URL = __DEV__
 const ADMOB_REWARDED_AD_ID = __DEV__
   ? TestIds.REWARDED  // Test ID for development
   : Platform.select({
-      android: 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY', // Your Android rewarded ad unit ID
-      ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ',     // Your iOS rewarded ad unit ID
+      android: 'ca-app-pub-1235261224322717/6641689996', // Your Android rewarded ad unit ID
+      // ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ',    
       default: TestIds.REWARDED,
     });
 
